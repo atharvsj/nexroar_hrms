@@ -1,0 +1,9 @@
+# Every day at midnight
+0 0 * * * python "/app/cron scripts/assign_paid_leaves_after_60_days.py" >> /app/cron_logs/assign_paid_leaves.log 2>&1
+
+# Every Jan 1 at midnight
+0 0 1 1 * python "/app/cron scripts/init_leave_balance.py" >> /app/cron_logs/init_leave_balance.log 2>&1
+
+# Every day at 11:50 PM
+50 23 * * * python "/app/cron scripts/clock_out_processor.py" >> /app/cron_logs/clock_out_processor.log 2>&1
+

@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+.env
+.venv/
+venv/
+ENV/
+env/
+Pipfile.lock
+
+# Django-specific
+*.log
+*.pot
+*.pyc
+db.sqlite3
+media/
+staticfiles/
+
+# VSCode
+.vscode/
+
+# macOS
+.DS_Store
+
+# PyCharm
+.idea/
+
+# Migrations (optional – only if you want to regenerate them)
+# **/migrations/*.py
+# **/migrations/*.pyc
+
+# Coverage reports
+htmlcov/
+.coverage
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pytest
+.cache/
+
+*.sql
+
+
+# Test output
+junit-*.xml
+
+# Docker
+*.pid
+
+# Node (if using npm for frontend within the same repo)
+node_modules/
+
+# Local settings (if using a local_settings.py pattern)
+local_settings.py

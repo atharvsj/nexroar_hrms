@@ -1,0 +1,10 @@
+services:
+  nexroarhrms-backend-web:
+    build: .
+    image: nexroarhrms-backend:latest
+    ports:
+      - "8013:8013"
+    volumes:
+      - .:/app
+    restart: always
+
