@@ -138,7 +138,7 @@ class LoginView(APIView):
             if user.id:
                 with connection.cursor() as c:
                     c.execute(
-                        """select u.is_hod,u.email,ud.designation_id,d.designation_name from ci_erp_users u inner join ci_erp_users_details ud on u.id = ud.user_id inner join ci_designations d on ud.designation_id = d.designation_id where u.id = %s""", [user.id]
+                        """select u.is_hod,u.email,ud.designation_id,d.designation_name,COALESCE(sr.role_resources,'') as role_resources from ci_erp_users u inner join ci_erp_users_details ud on u.id = ud.user_id inner join ci_designations d on ud.designation_id = d.designation_id left join ci_staff_roles sr on u.user_role_id = sr.role_id where u.id = %s""", [user.id]
                     )
                     # is_hod, email = c.fetchone()
                     row = c.fetchone()
@@ -146,6 +146,7 @@ class LoginView(APIView):
                     email = row[1]
                     designation_id = row[2]
                     designation_name = row[3]
+                    role_resources = row[4]
 
             # Return the JWT token along with the role
             return Response(
@@ -161,6 +162,7 @@ class LoginView(APIView):
                     "email": email,
                     "designation_id": designation_id,
                     "designation_name": designation_name,
+                    "role_resources": role_resources,
                 },
                 status=status.HTTP_200_OK,
             )
@@ -12412,9 +12414,36 @@ class EmployeePolicyAcknowledgeView(APIView):
             alert = None
             if not all_acknowledged:
                 alert = "Alert! You Need to Accept All Policy to Avail your Attendance and Payroll"
+            
+            # Check if signed document is uploaded
+            cursor.execute("""
+                SELECT signed_document, uploaded_at, email_status
+                FROM ci_policy_signed_documents
+                WHERE emp_id = %s
+            """, [emp_id])
+            signed_doc_row = cursor.fetchone()
+            
+            signed_document_info = {
+                "has_uploaded": False,
+                "document_path": None,
+                "uploaded_at": None,
+                "email_status": "not_uploaded"
+            }
+            
+            if signed_doc_row:
+                signed_document_info = {
+                    "has_uploaded": True,
+                    "document_path": signed_doc_row[0],
+                    "uploaded_at": signed_doc_row[1].strftime('%Y-%m-%d %H:%M:%S') if signed_doc_row[1] else None,
+                    "email_status": signed_doc_row[2]
+                }
 
             return Response({
                 "alert": alert,
+                "all_acknowledged": all_acknowledged,
+                "total_policies": len(policy_ids),
+                "acknowledged_count": len(acknowledged_ids),
+                "signed_document": signed_document_info,
                 "policies": result
             }, status=200)
 
@@ -15547,5 +15576,461 @@ class RejectResignationThroughMail(APIView):
 #             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+# ================================================================================
+# POLICY SIGNED ACKNOWLEDGEMENT DOCUMENT - NEW FEATURE
+# ================================================================================
+
+from django.http import FileResponse, HttpResponse
+from django.core.mail import EmailMessage
 
 
+class DownloadPolicyAcknowledgementTemplateView(APIView):
+    """
+    Download the policy acknowledgement template (ebook.pdf) for employees to sign.
+    GET /policies/download-acknowledgement-template/<emp_id>/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, emp_id):
+        try:
+            # Verify employee exists
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT u.first_name, u.last_name, u.email
+                    FROM ci_erp_users_details ud
+                    JOIN ci_erp_users u ON ud.user_id = u.id
+                    WHERE ud.employee_id = %s
+                """, [emp_id])
+                employee = cursor.fetchone()
+                
+                if not employee:
+                    return Response({
+                        "error": "Employee not found"
+                    }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Path to ebook.pdf in media folder
+            file_path = os.path.join(settings.MEDIA_ROOT, 'ebook.pdf')
+            
+            # Check if file exists
+            if not os.path.exists(file_path):
+                return Response({
+                    "error": "Template file not found"
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Open and return the file
+            file_handle = open(file_path, 'rb')
+            response = FileResponse(file_handle, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="Policy_Acknowledgement_Template.pdf"'
+            
+            return response
+            
+        except Exception as e:
+            return Response({
+                "error": f"Failed to download template: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class UploadSignedPolicyDocumentView(APIView):
+    """
+    Upload signed policy acknowledgement document.
+    POST /policies/upload-signed-document/<emp_id>/
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+    
+    def post(self, request, emp_id):
+        try:
+            # Get the uploaded file
+            signed_document = request.FILES.get('signed_document')
+            
+            if not signed_document:
+                return Response({
+                    "error": "No file uploaded. Please upload a signed document."
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate file size (max 10MB)
+            if signed_document.size > settings.MAX_UPLOAD_SIZE:
+                return Response({
+                    "error": f"File size exceeds maximum limit of {settings.MAX_UPLOAD_SIZE / (1024*1024)}MB"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate file extension
+            allowed_extensions = ['.pdf', '.jpg', '.jpeg', '.png', '.docx']
+            file_ext = os.path.splitext(signed_document.name)[1].lower()
+            if file_ext not in allowed_extensions:
+                return Response({
+                    "error": f"Invalid file type. Allowed types: {', '.join(allowed_extensions)}"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            with connection.cursor() as cursor:
+                # Get employee details
+                cursor.execute("""
+                    SELECT u.id, u.first_name, u.last_name, u.email, u.username
+                    FROM ci_erp_users_details ud
+                    JOIN ci_erp_users u ON ud.user_id = u.id
+                    WHERE ud.employee_id = %s
+                """, [emp_id])
+                employee = cursor.fetchone()
+                
+                if not employee:
+                    return Response({
+                        "error": "Employee not found"
+                    }, status=status.HTTP_404_NOT_FOUND)
+                
+                user_id, first_name, last_name, email, username = employee
+                employee_name = f"{first_name} {last_name}"
+                
+                # Check if employee has acknowledged all policies
+                cursor.execute("""
+                    SELECT policy_id 
+                    FROM ci_policy_allocations 
+                    WHERE emp_id = %s
+                """, [emp_id])
+                allocation_row = cursor.fetchone()
+                
+                if not allocation_row or not allocation_row[0]:
+                    return Response({
+                        "error": "No policies assigned to this employee"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                policy_ids = allocation_row[0].split(',')
+                
+                # Check if all policies are acknowledged
+                cursor.execute("""
+                    SELECT COUNT(*) 
+                    FROM ci_policies_acknowledge 
+                    WHERE emp_id = %s AND acknowledge = 'Y'
+                """, [emp_id])
+                acknowledged_count = cursor.fetchone()[0]
+                
+                if acknowledged_count < len(policy_ids):
+                    return Response({
+                        "error": "Please acknowledge all assigned policies before uploading the signed document",
+                        "acknowledged": acknowledged_count,
+                        "total_policies": len(policy_ids)
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Create directory for signed documents
+                signed_docs_dir = os.path.join(settings.MEDIA_ROOT, 'signed_acknowledgements')
+                os.makedirs(signed_docs_dir, exist_ok=True)
+                
+                # Generate unique filename
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                safe_filename = f"{emp_id}_policy_acknowledgement_{timestamp}{file_ext}"
+                file_path = os.path.join(signed_docs_dir, safe_filename)
+                
+                # Save the file
+                with open(file_path, 'wb+') as destination:
+                    for chunk in signed_document.chunks():
+                        destination.write(chunk)
+                
+                # Store relative path for database
+                db_file_path = f"signed_acknowledgements/{safe_filename}"
+                upload_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                
+                # Check if record already exists
+                cursor.execute("""
+                    SELECT id FROM ci_policy_signed_documents 
+                    WHERE emp_id = %s
+                """, [emp_id])
+                existing_record = cursor.fetchone()
+                
+                if existing_record:
+                    # Update existing record
+                    cursor.execute("""
+                        UPDATE ci_policy_signed_documents 
+                        SET signed_document = %s, 
+                            uploaded_at = %s,
+                            email_status = 'pending'
+                        WHERE emp_id = %s
+                    """, [db_file_path, upload_datetime, emp_id])
+                else:
+                    # Insert new record
+                    cursor.execute("""
+                        INSERT INTO ci_policy_signed_documents 
+                        (emp_id, signed_document, uploaded_at, email_status, created_at)
+                        VALUES (%s, %s, %s, 'pending', %s)
+                    """, [emp_id, db_file_path, upload_datetime, upload_datetime])
+                
+                # Get HR email from settings or database
+                hr_email = 'hr@thedatatechlabs.com'  # Default HR email
+                
+                # Try to get HR email from database
+                cursor.execute("""
+                    SELECT email FROM ci_erp_users 
+                    WHERE user_type = 'admin' AND is_active = 1 
+                    LIMIT 1
+                """)
+                hr_row = cursor.fetchone()
+                if hr_row and hr_row[0]:
+                    hr_email = hr_row[0]
+                
+                # Send email to HR
+                try:
+                    subject = f'Policy Acknowledgement - Signed Document from {employee_name}'
+                    message = f"""
+Dear HR Team,
+
+Employee {employee_name} (ID: {emp_id}) has uploaded their signed policy acknowledgement document.
+
+Employee Details:
+- Name: {employee_name}
+- Employee ID: {emp_id}
+- Email: {email}
+- Upload Date: {upload_datetime}
+- Policies Acknowledged: {len(policy_ids)}
+
+Please find the signed document attached.
+
+Best Regards,
+HRMS System
+                    """
+                    
+                    email_msg = EmailMessage(
+                        subject=subject,
+                        body=message,
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        to=[hr_email],
+                        cc=[email]  # CC to employee
+                    )
+                    
+                    # Attach the signed document
+                    email_msg.attach_file(file_path)
+                    email_msg.send(fail_silently=False)
+                    
+                    # Update email status
+                    email_sent_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    cursor.execute("""
+                        UPDATE ci_policy_signed_documents 
+                        SET email_status = 'sent', email_sent_at = %s
+                        WHERE emp_id = %s
+                    """, [email_sent_at, emp_id])
+                    
+                    return Response({
+                        "message": "Signed document uploaded successfully and email sent to HR",
+                        "employee_id": emp_id,
+                        "employee_name": employee_name,
+                        "file_path": db_file_path,
+                        "uploaded_at": upload_datetime,
+                        "email_sent": True,
+                        "hr_email": hr_email
+                    }, status=status.HTTP_201_CREATED)
+                    
+                except Exception as email_error:
+                    # Update email status to failed
+                    cursor.execute("""
+                        UPDATE ci_policy_signed_documents 
+                        SET email_status = 'failed'
+                        WHERE emp_id = %s
+                    """, [emp_id])
+                    
+                    return Response({
+                        "message": "Document uploaded but failed to send email to HR",
+                        "employee_id": emp_id,
+                        "employee_name": employee_name,
+                        "file_path": db_file_path,
+                        "uploaded_at": upload_datetime,
+                        "email_sent": False,
+                        "email_error": str(email_error)
+                    }, status=status.HTTP_201_CREATED)
+                    
+        except Exception as e:
+            return Response({
+                "error": f"Failed to upload document: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class SignedPolicyDocumentStatusView(APIView):
+    """
+    Check if employee has uploaded signed policy document.
+    GET /policies/signed-document-status/<emp_id>/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, emp_id):
+        try:
+            with connection.cursor() as cursor:
+                # Get employee info
+                cursor.execute("""
+                    SELECT u.first_name, u.last_name
+                    FROM ci_erp_users_details ud
+                    JOIN ci_erp_users u ON ud.user_id = u.id
+                    WHERE ud.employee_id = %s
+                """, [emp_id])
+                employee = cursor.fetchone()
+                
+                if not employee:
+                    return Response({
+                        "error": "Employee not found"
+                    }, status=status.HTTP_404_NOT_FOUND)
+                
+                employee_name = f"{employee[0]} {employee[1]}"
+                
+                # Check if signed document exists
+                cursor.execute("""
+                    SELECT signed_document, uploaded_at, email_status, email_sent_at
+                    FROM ci_policy_signed_documents
+                    WHERE emp_id = %s
+                """, [emp_id])
+                doc_row = cursor.fetchone()
+                
+                if doc_row:
+                    return Response({
+                        "employee_id": emp_id,
+                        "employee_name": employee_name,
+                        "has_uploaded": True,
+                        "document_path": doc_row[0],
+                        "uploaded_at": doc_row[1].strftime('%Y-%m-%d %H:%M:%S') if doc_row[1] else None,
+                        "email_status": doc_row[2],
+                        "email_sent_at": doc_row[3].strftime('%Y-%m-%d %H:%M:%S') if doc_row[3] else None
+                    }, status=status.HTTP_200_OK)
+                else:
+                    return Response({
+                        "employee_id": emp_id,
+                        "employee_name": employee_name,
+                        "has_uploaded": False,
+                        "document_path": None,
+                        "uploaded_at": None,
+                        "email_status": "not_uploaded",
+                        "email_sent_at": None
+                    }, status=status.HTTP_200_OK)
+                    
+        except Exception as e:
+            return Response({
+                "error": f"Failed to check status: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ViewSignedPolicyDocumentView(APIView):
+    """
+    View/Download signed policy document (for HR/Admin).
+    GET /policies/view-signed-document/<emp_id>/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, emp_id):
+        try:
+            with connection.cursor() as cursor:
+                # Get employee info
+                cursor.execute("""
+                    SELECT u.first_name, u.last_name
+                    FROM ci_erp_users_details ud
+                    JOIN ci_erp_users u ON ud.user_id = u.id
+                    WHERE ud.employee_id = %s
+                """, [emp_id])
+                employee = cursor.fetchone()
+                
+                if not employee:
+                    return Response({
+                        "error": "Employee not found"
+                    }, status=status.HTTP_404_NOT_FOUND)
+                
+                employee_name = f"{employee[0]} {employee[1]}"
+                
+                # Get signed document path
+                cursor.execute("""
+                    SELECT signed_document
+                    FROM ci_policy_signed_documents
+                    WHERE emp_id = %s
+                """, [emp_id])
+                doc_row = cursor.fetchone()
+                
+                if not doc_row or not doc_row[0]:
+                    return Response({
+                        "error": "No signed document found for this employee"
+                    }, status=status.HTTP_404_NOT_FOUND)
+                
+                # Build full file path
+                file_path = os.path.join(settings.MEDIA_ROOT, doc_row[0])
+                
+                if not os.path.exists(file_path):
+                    return Response({
+                        "error": "Signed document file not found on server"
+                    }, status=status.HTTP_404_NOT_FOUND)
+                
+                # Determine content type based on file extension
+                file_ext = os.path.splitext(file_path)[1].lower()
+                content_type_map = {
+                    '.pdf': 'application/pdf',
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg',
+                    '.png': 'image/png',
+                    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                }
+                content_type = content_type_map.get(file_ext, 'application/octet-stream')
+                
+                # Open and return the file
+                file_handle = open(file_path, 'rb')
+                response = FileResponse(file_handle, content_type=content_type)
+                response['Content-Disposition'] = f'attachment; filename="{emp_id}_{employee_name.replace(" ", "_")}_signed_policy{file_ext}"'
+                
+                return response
+                
+        except Exception as e:
+            return Response({
+                "error": f"Failed to retrieve document: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class AllSignedPolicyDocumentsView(APIView):
+    """
+    Get list of all employees with signed document status (for HR/Admin dashboard).
+    GET /policies/all-signed-documents/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT 
+                        ud.employee_id,
+                        CONCAT(u.first_name, ' ', u.last_name) AS employee_name,
+                        u.email,
+                        psd.signed_document,
+                        psd.uploaded_at,
+                        psd.email_status,
+                        psd.email_sent_at,
+                        CASE 
+                            WHEN psd.emp_id IS NOT NULL THEN 'Uploaded'
+                            ELSE 'Pending'
+                        END AS status
+                    FROM ci_erp_users_details ud
+                    JOIN ci_erp_users u ON ud.user_id = u.id
+                    LEFT JOIN ci_policy_signed_documents psd ON ud.employee_id = psd.emp_id
+                    WHERE u.is_active = 1
+                    ORDER BY psd.uploaded_at DESC, ud.employee_id ASC
+                """)
+                rows = cursor.fetchall()
+                
+                result = []
+                for row in rows:
+                    result.append({
+                        "employee_id": row[0],
+                        "employee_name": row[1],
+                        "email": row[2],
+                        "document_path": row[3],
+                        "uploaded_at": row[4].strftime('%Y-%m-%d %H:%M:%S') if row[4] else None,
+                        "email_status": row[5] if row[5] else "not_uploaded",
+                        "email_sent_at": row[6].strftime('%Y-%m-%d %H:%M:%S') if row[6] else None,
+                        "status": row[7]
+                    })
+                
+                # Summary stats
+                total_employees = len(result)
+                uploaded_count = sum(1 for r in result if r['status'] == 'Uploaded')
+                pending_count = total_employees - uploaded_count
+                
+                return Response({
+                    "summary": {
+                        "total_employees": total_employees,
+                        "uploaded": uploaded_count,
+                        "pending": pending_count
+                    },
+                    "data": result
+                }, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            return Response({
+                "error": f"Failed to retrieve documents list: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

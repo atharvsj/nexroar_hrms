@@ -1,0 +1,330 @@
+SQL Tables with Column Names
+================================================================================
+
+ci_erp_users
+------------
+id, user_role_id, user_type, company_id, first_name, middle_name, last_name, age, email, personal_email, username, password, company_name, trading_name, registration_no, government_tax, company_type_id, profile_photo, contact_number, personal_number, gender, address_1, address_2, city, state, employee_hub_id, zipcode, country, correspondence_state, correspondence_country, correspondence_city, correspondence_pincode, last_login_date, last_logout_date, last_login_ip, is_logged_in, first_login, is_active, created_at, is_hod, custome_unique_id, city_address_2, state_address_2, country_address_2, zipcode_address_2
+
+ci_erp_users_details
+--------------------
+staff_details_id, user_id, employee_id, department_id, designation_id, headquarter, division_id, grade_id, sub_division, manager_id, manager_emp_id, manager, office_shift_id, basic_salary, location_id, gross_salary, gross_salary_yearly, ctc_monthly, ctc_yearly, emp_ctc, hourly_rate, payslip_type, salay_type, basic_monthly, basic_yearly, pan_number, aadhar_no, esic_number, uan_number, role_description, date_of_joining, date_of_birth, marital_status, religion_id, blood_group, citizenship_id, nationality_id, education_level, degree_name, bio, experience, year_of_experience, month_of_experience, fb_profile, date_of_leaving, gplus_profile, linkedin_profile, account_title, account_number, bank_name, iban, swift_code, bank_branch, ifsc_code, pf_number, contact_full_name, contact_phone_no, contact_phone_no_2, contact_email, Address, created_at, probation, probation_end_date, pro_edit_permission, billing, is_probation_extend, probation_extended_date, is_terminated, terminated_date, employee_confirm, confirmation_date, comment_by_lm, comment_by_head, comment_by_hr, twitter_profile, contact_address, passport_no, vehicle_no, driving_licence_no, last_promotion_date, account_holder_name, police_station_address, police_station_country, police_station_state, police_station_district, police_station_village, police_station_pincode, sign
+
+ci_erp_constants
+----------------
+constants_id, company_id, type, category_name, field_one, field_two, created_at, parent_value
+
+ci_biomatric_data
+-----------------
+ci_biomatric_id, emp_id, userid, employee_hub_id, login_date, clock_in, clock_in_location, clock_out, clock_out_location, state_in_out, late_mark, early_mark, total_work, is_half_day, is_half_day_processed, half_day_reason, late_mark_count, attendance_date, attendance_status, status, from_od, reason, wfh
+
+ci_departments
+--------------
+department_id, department_name, company_id, department_code, department_head, added_by, created_at
+
+ci_designations
+---------------
+designation_id, department_id, company_id, designation_name, designation_code, description, created_at
+
+ci_leave_applications
+---------------------
+leave_id, company_id, employee_id, leave_type_id, from_date, to_date, no_of_days, reason, remarks, status, line_manager_status, is_half_day, leave_attachment, created_at
+
+ci_assets
+---------
+id, assets_category_id, brand_id, product_id, company_id, employee_id, company_asset_code, assets_name, quantity, purchase_date, invoice_number, manufacturer, serial_number, warranty_end_date, asset_note, asset_image, is_working, returned, return_date, employee_cnf, created_at, employee_confirmation, return_request_status
+
+ci_resignations
+---------------
+resignation_id, company_id, employee_id, last_working_day, resignation_date, reason, added_by, status, created_at, department_id
+
+ci_holidays
+-----------
+holiday_id, company_id, state, employee_hub, event_name, description, start_date, end_date, is_publish, created_at, country
+
+ci_office_shifts
+----------------
+office_shift_id, company_id, employee_hub_id, shift_name, monday_in_time, monday_out_time, tuesday_in_time, tuesday_out_time, wednesday_in_time, wednesday_out_time, thursday_in_time, thursday_out_time, friday_in_time, friday_out_time, saturday_in_time, saturday_out_time, sunday_in_time, sunday_out_time, created_at
+
+ci_employee_hub
+---------------
+employee_hub_id, state_id, designation_id, employee_hub_name, created_at
+
+ci_employee_exit_final
+----------------------
+employee_exit_final_id, user_id, employee_id, exit_type, return_asset, exit_interview_questionnaire, employee_clearance_form, f&f, relieving_letter, experience_letter, clearance_form
+
+ci_policies
+-----------
+policy_id, company_id, title, description, attachment, added_by, created_at
+
+ci_staff_roles
+--------------
+role_id, company_id, role_name, role_access, role_resources, created_at
+
+ci_employee_exit_questionnaire
+------------------------------
+ques_id, question, created_date
+
+ci_payroll_report
+-----------------
+payroll_report_id, employee_id, employee_name, gender, department_id, designation_id, month, year, gross_salary, payable_days, esic_applicable, gross_earning, basic_plus_da, hra, medical_allowance, conveyance_allowance, arrears, total_earnings, pf, esic, pt, mlwf, tds, other_deduction, total_deduction, net_pay, ctc, status, created_at
+
+ci_division
+-----------
+division_id, division_name, division_code, created_at
+
+ci_leave_balance
+----------------
+leave_balance_id, employee_id, employee_name, leave_type_id, leave_type, balance_leave, carry_forward, last_paid_leave_given_at, year, status
+
+ci_policy_allocations
+---------------------
+policy_allocation_id, emp_id, policy_id, allocation_date
+
+ci_employee_exit
+----------------
+exit_id, company_id, employee_id, employee_id_1, employee_name, exit_date, exit_type_id, sub_exit_type_id, exit_interview, is_inactivate_account, reason, accountability_to, added_by, status, created_at
+
+ci_projects
+-----------
+project_id, company_id, client_id, title, start_date, end_date, assigned_to, associated_goals, priority, project_no, budget_hours, summary, description, project_progress, project_note, status, added_by, created_at
+
+ci_headquarters
+---------------
+location_id, location_name, location_short_name, location_address, created_at, company_id, status
+
+ci_policies_acknowledge
+-----------------------
+policies_acknow_id, policy_id, userid, emp_id, acknowledge, is_policy_view, created_date
+
+ci_employee_exit_feedback
+-------------------------
+feedback_id, employee_id, ques_id, answer, brief_answer, created_at
+
+ci_tasks
+--------
+task_id, company_id, project_id, task_name, assigned_to, associated_goals, start_date, end_date, task_hour, task_progress, summary, description, task_status, task_note, created_by, created_at, priority
+
+ci_employee_exit_option
+-----------------------
+answer_id, ques_id, answer_option, created_at
+
+ci_biomatric_data_2
+-------------------
+id, ci_biomatric_id, emp_id, login_date, clock_in, clock_out
+
+ci_salary_structure
+-------------------
+salary_structure_id, particulars, value, created_at
+
+ci_announcements
+----------------
+announcement_id, employee_id, company_id, department_id, title, start_date, end_date, published_by, summary, description, is_active, created_at
+
+ci_grade
+--------
+grade_id, grade_name, grade_code, created_date, updated_date
+
+ci_clients
+----------
+id, full_name, company_name, contact_number, gender, email_address, profile_picture, created_at
+
+ci_update_salary
+----------------
+update_salary_id, employee_id, previous_salary, current_salary, updated_at
+
+ci_awards
+---------
+award_id, company_id, employee_id, award_type_id, associated_goals, gift_item, cash_price, award_photo, award_month_year, award_information, description, created_at
+
+ci_support_tickets_employee
+---------------------------
+id, employee_id, subject, priority, description, created_at, ticket_status, updated_at
+
+ci_company_details
+------------------
+company_detail_id, company_name, register_address, manufacturing_address, phone_number, pan_number, created_date, is_posted, company_stamp
+
+ci_revenue
+----------
+revenue_id, month, year, total_revenue, employee_contribution, average, total_salary, fixed_cost_employee, total_cost_employee, monthly_total_salary, monthly_expenses, total_employee_cost, per_employee_cost, per_revenue, exceptional, exceeds_expectations, meet_expectations, below_expectations, unsatisfactory, department_attrition_rate, division_attrition_rate, opened_recruitment_tracker, filed_recruitment_tracker, in_process_recruitment_tracker, level1_employee, level2_employee, level3_employee, level4_employee, created_at
+
+ci_leave_count
+--------------
+leave_count_id, employee_id, leave_id, leave_type, leave_type_id, number_of_leave, status_lc
+
+ci_terminations
+---------------
+termination_id, employee_id, exit_type, date_of_termination, reason_of_termination, mail_status, created_at
+
+ci_events
+---------
+event_id, company_id, employee_id, event_title, event_date, event_time, event_note, event_color, created_at
+
+ci_todo_items
+-------------
+todo_item_id, company_id, user_id, description, is_done, created_at
+
+ci_travels
+----------
+travel_id, company_id, employee_id, start_date, end_date, associated_goals, visit_purpose, visit_place, travel_mode, arrangement_type, expected_budget, actual_budget, description, status, added_by, created_at
+
+ci_notification
+---------------
+notification_id, send_from_id, send_to_id, notification_text, is_view, is_click, created_at
+
+ci_erp_compoff
+--------------
+compoff_id, emp_id, start_date_compoff, end_date_compoff, no_of_days, compoff_reason, compoff_status, created_at
+
+ci_visitors
+-----------
+visitor_id, company_id, department_id, visit_purpose, visitor_name, phone, email, visit_date, check_in, check_out, address, description, created_by, created_at
+
+ci_support_ticket_reply
+-----------------------
+ticket_reply_id, company_id, ticket_id, sent_by, assign_to, reply_text, created_at
+
+ci_employee_progress_tracking
+-----------------------------
+progress_id, emp_id, parameter_id, phase, points_by_lm, comment_by_lm, points_by_head, comment_by_head, points_by_hr, comment_by_hr, created_at
+
+ci_support_tickets
+------------------
+ticket_id, company_id, ticket_code, subject, employee_id, ticket_priority, department_id, description, ticket_remarks, ticket_status, created_by, created_at
+
+ci_support_ticket_notes
+-----------------------
+ticket_note_id, company_id, ticket_id, employee_id, ticket_note, created_at
+
+ci_support_ticket_files
+-----------------------
+ticket_file_id, company_id, ticket_id, employee_id, file_title, attachment_file, created_at
+
+ci_warnings
+-----------
+warning_id, company_id, warning_to, warning_by, warning_date, warning_type_id, attachment, subject, description, created_at
+
+ci_projects_discussion
+----------------------
+project_discussion_id, company_id, project_id, employee_id, discussion_text, created_at
+
+ci_family_members
+-----------------
+family_member_id, user_id, name, age, relation, occupation, date_of_birth, contact_number, gender, created_at
+
+ci_users_documents
+------------------
+document_id, company_id, user_id, document_name, document_type, document_file, created_at
+
+ci_otp_verification
+-------------------
+id, user_id, email, otp, otp_expiry, is_verified, created_at, updated_at
+
+ci_erp_company_settings
+-----------------------
+setting_id, company_id, default_currency, default_currency_symbol, notification_position, notification_close_btn, notification_bar, date_format_xi, default_language, system_timezone, paypal_email, paypal_sandbox, paypal_active, stripe_secret_key, stripe_publishable_key, stripe_active, invoice_terms_condition, updated_at
+
+ci_employee_documents
+---------------------
+id, user_id, employee_id, document_type, document_url, uploaded_at
+
+ci_confirmation_parameters
+--------------------------
+parameter_id, para_name
+
+ci_tasks_discussion
+-------------------
+task_discussion_id, company_id, task_id, employee_id, discussion_text, created_at
+
+ci_tasks_notes
+--------------
+task_note_id, company_id, task_id, employee_id, task_note, created_at
+
+ci_projects_files
+-----------------
+project_file_id, company_id, project_id, employee_id, file_title, attachment_file, created_at
+
+ci_assets_instock
+-----------------
+instock_id, brand_id, category_id, product_id, quantity, price, invoice_number, purchase_date, warranty_end_date, created_date
+
+ci_payslips
+-----------
+payslip_id, payslip_key, company_id, staff_id, salary_month, wages_type, payslip_type, basic_salary, daily_wages, hours_worked, total_allowances, total_commissions, total_statutory_deductions, total_other_payments, net_salary, payment_method, pay_comments, is_payment, year_to_date, is_advance_salary_deduct, advance_salary_amount, is_loan_deduct, loan_amount, status, created_at
+
+ci_designationwise_parameters
+-----------------------------
+dp_id, parameter_id, designation_id, phase, created_by, created_at
+
+ci_forms
+--------
+id, employee_id, employee_clearance_form, fnf_settlement, relieving_letter, experience_letter
+
+ci_tasks_files
+--------------
+task_file_id, company_id, task_id, employee_id, file_title, attachment_file, created_at
+
+ci_employee_tds
+---------------
+employee_tds_id, employee_id, from_date, to_date, tds_amount, created_at, updated_at
+
+ci_leave_setup
+--------------
+leave_setup_id, constants_id, previous_leave_name, current_leave_name, previous_leave_days, current_leave_days, year, created_at
+
+ci_employee_overall_analysis
+----------------------------
+analysis_id, user_id, emp_id, performance_analysis, kra_kpi_total, average, percent_achievement, comment_by_lm, comment_by_hr, comment_by_head, created_at
+
+ci_payslip_allowances
+---------------------
+payslip_allowances_id, payslip_id, staff_id, is_taxable, is_fixed, pay_title, pay_amount, salary_month, created_at
+
+ci_payslip_commissions
+----------------------
+payslip_commissions_id, payslip_id, staff_id, is_taxable, is_fixed, pay_title, pay_amount, salary_month, created_at
+
+ci_payslip_statutory_deductions
+-------------------------------
+payslip_deduction_id, payslip_id, staff_id, is_fixed, pay_title, pay_amount, salary_month, created_at
+
+ci_payslip_other_payments
+-------------------------
+payslip_other_payment_id, payslip_id, staff_id, is_taxable, is_fixed, pay_title, pay_amount, salary_month, created_at
+
+ci_save_revenue_expense
+-----------------------
+hr_rev_exp_id, month, year, total_revenue, total_expense, created_at, updated_at
+
+ci_finance_transactions
+-----------------------
+transaction_id, account_id, company_id, staff_id, transaction_date, transaction_type, entity_id, entity_type, entity_category_id, description, amount, dr_cr, payment_method_id, reference, attachment_file, created_at
+
+ci_payroll_allowance_dedcution
+------------------------------
+allowance_dedcution_id, employee_id, yearmonth, allowance, deduction, status, created_at
+
+ci_advance_salary
+-----------------
+advance_salary_id, company_id, employee_id, salary_type, month_year, advance_amount, one_time_deduct, monthly_installment, total_paid, reason, status, is_deducted_from_salary, created_at
+
+ci_timesheet
+------------
+time_attendance_id, company_id, employee_id, attendance_date, clock_in, clock_in_ip_address, clock_out, clock_out_ip_address, clock_in_out, clock_in_latitude, clock_in_longitude, clock_out_latitude, clock_out_longitude, time_late, early_leaving, overtime, total_work, total_rest, attendance_status
+
+ci_finance_accounts
+-------------------
+account_id, company_id, account_name, account_balance, account_opening_balance, account_number, branch_code, bank_branch, created_at
+
+ci_finance_entity
+-----------------
+entity_id, company_id, name, contact_number, type, created_at
+
+
+================================================================================
+TABLES NOT FOUND IN DATABASE:
+================================================================================
+  - ci_employee_feedback
+  - ci_password_reset_tokens
+  - ci_erp_user_details

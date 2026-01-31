@@ -1,0 +1,175 @@
+SQL Tables Used in Workspace APIs (ci_ prefix only)
+==================================================
+
+Table Name | References
+--------------------------------------------------
+ci_erp_users | 619
+ci_erp_users_details | 453
+ci_erp_constants | 289
+ci_biomatric_data | 178
+ci_departments | 159
+ci_designations | 128
+ci_leave_applications | 112
+ci_assets | 108
+ci_resignations | 89
+ci_holidays | 74
+ci_office_shifts | 65
+ci_employee_hub | 61
+ci_employee_exit_final | 59
+ci_policies | 56
+ci_staff_roles | 56
+ci_employee_exit_questionnaire | 54
+ci_payroll_report | 53
+ci_division | 49
+ci_leave_balance | 47
+ci_policy_allocations | 45
+ci_employee_exit | 39
+ci_projects | 38
+ci_headquarters | 35
+ci_policies_acknowledge | 32
+ci_employee_exit_feedback | 30
+ci_tasks | 29
+ci_employee_exit_option | 28
+ci_biomatric_data_2 | 28
+ci_salary_structure | 26
+ci_announcements | 22
+ci_grade | 21
+ci_clients | 20
+ci_update_salary | 20
+ci_awards | 18
+ci_support_tickets_employee | 18
+ci_company_details | 17
+ci_revenue | 17
+ci_leave_count | 17
+ci_terminations | 16
+ci_events | 16
+ci_todo_items | 16
+ci_travels | 15
+ci_notification | 14
+ci_erp_compoff | 14
+ci_visitors | 14
+ci_support_ticket_reply | 14
+ci_employee_progress_tracking | 14
+ci_support_tickets | 13
+ci_support_ticket_notes | 12
+ci_support_ticket_files | 12
+ci_warnings | 10
+ci_projects_discussion | 10
+ci_family_members | 10
+ci_users_documents | 9
+ci_otp_verification | 9
+ci_employee_feedback | 8
+ci_erp_company_settings | 8
+ci_employee_documents | 7
+ci_confirmation_parameters | 7
+ci_tasks_discussion | 6
+ci_tasks_notes | 6
+ci_projects_files | 6
+ci_assets_instock | 6
+ci_payslips | 5
+ci_designationwise_parameters | 5
+ci_forms | 4
+ci_password_reset_tokens | 4
+ci_tasks_files | 4
+ci_employee_tds | 4
+ci_leave_setup | 4
+ci_employee_overall_analysis | 4
+ci_payslip_allowances | 3
+ci_payslip_commissions | 3
+ci_payslip_statutory_deductions | 3
+ci_payslip_other_payments | 3
+ci_save_revenue_expense | 3
+ci_erp_user_details | 1
+ci_finance_transactions | 1
+ci_payroll_allowance_dedcution | 1
+ci_advance_salary | 1
+ci_timesheet | 1
+ci_finance_accounts | 1
+ci_finance_entity | 1
+
+
+--- Table Names Only ---
+
+ci_erp_users
+ci_erp_users_details
+ci_erp_constants
+ci_biomatric_data
+ci_departments
+ci_designations
+ci_leave_applications
+ci_assets
+ci_resignations
+ci_holidays
+ci_office_shifts
+ci_employee_hub
+ci_employee_exit_final
+ci_policies
+ci_staff_roles
+ci_employee_exit_questionnaire
+ci_payroll_report
+ci_division
+ci_leave_balance
+ci_policy_allocations
+ci_employee_exit
+ci_projects
+ci_headquarters
+ci_policies_acknowledge
+ci_employee_exit_feedback
+ci_tasks
+ci_employee_exit_option
+ci_biomatric_data_2
+ci_salary_structure
+ci_announcements
+ci_grade
+ci_clients
+ci_update_salary
+ci_awards
+ci_support_tickets_employee
+ci_company_details
+ci_revenue
+ci_leave_count
+ci_terminations
+ci_events
+ci_todo_items
+ci_travels
+ci_notification
+ci_erp_compoff
+ci_visitors
+ci_support_ticket_reply
+ci_employee_progress_tracking
+ci_support_tickets
+ci_support_ticket_notes
+ci_support_ticket_files
+ci_warnings
+ci_projects_discussion
+ci_family_members
+ci_users_documents
+ci_otp_verification
+ci_employee_feedback
+ci_erp_company_settings
+ci_employee_documents
+ci_confirmation_parameters
+ci_tasks_discussion
+ci_tasks_notes
+ci_projects_files
+ci_assets_instock
+ci_payslips
+ci_designationwise_parameters
+ci_forms
+ci_password_reset_tokens
+ci_tasks_files
+ci_employee_tds
+ci_leave_setup
+ci_employee_overall_analysis
+ci_payslip_allowances
+ci_payslip_commissions
+ci_payslip_statutory_deductions
+ci_payslip_other_payments
+ci_save_revenue_expense
+ci_erp_user_details
+ci_finance_transactions
+ci_payroll_allowance_dedcution
+ci_advance_salary
+ci_timesheet
+ci_finance_accounts
+ci_finance_entity

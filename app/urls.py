@@ -83,6 +83,12 @@ path('api/policy-allocation/<str:employee_id>/', PolicyAllocationAPIView.as_view
 path('policies/assigned/<str:emp_id>/', EmployeePolicyAcknowledgeView.as_view(), name='assigned-policies'),
 path('policies/acknowledge/<str:emp_id>/', EmployeePolicyAcknowledgeView.as_view(), name='acknowledge-policy'),
 
+# Policy Signed Acknowledgement Document - NEW
+path('policies/download-acknowledgement-template/<str:emp_id>/', DownloadPolicyAcknowledgementTemplateView.as_view(), name='download-acknowledgement-template'),
+path('policies/upload-signed-document/<str:emp_id>/', UploadSignedPolicyDocumentView.as_view(), name='upload-signed-document'),
+path('policies/signed-document-status/<str:emp_id>/', SignedPolicyDocumentStatusView.as_view(), name='signed-document-status'),
+path('policies/view-signed-document/<str:emp_id>/', ViewSignedPolicyDocumentView.as_view(), name='view-signed-document'),
+path('policies/all-signed-documents/', AllSignedPolicyDocumentsView.as_view(), name='all-signed-documents'),
 
 
 #employee
