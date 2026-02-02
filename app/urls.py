@@ -88,8 +88,11 @@ path('policies/download-acknowledgement-template/<str:emp_id>/', DownloadPolicyA
 path('policies/upload-signed-document/<str:emp_id>/', UploadSignedPolicyDocumentView.as_view(), name='upload-signed-document'),
 path('policies/signed-document-status/<str:emp_id>/', SignedPolicyDocumentStatusView.as_view(), name='signed-document-status'),
 path('policies/view-signed-document/<str:emp_id>/', ViewSignedPolicyDocumentView.as_view(), name='view-signed-document'),
-path('policies/all-signed-documents/', AllSignedPolicyDocumentsView.as_view(), name='all-signed-documents'),
-
+path('policies/all-signed-documents/', AllSignedPolicyDocumentsView.as_view(), name='all-signed-documents'),    
+    # Policy Reminder & Monitoring - NEW
+    path('policies/send-reminder/<str:emp_id>/', SendPolicyReminderView.as_view(), name='send-policy-reminder'),
+    path('policies/resend-email/<str:emp_id>/', ResendEmailToHRView.as_view(), name='resend-email-to-hr'),
+    path('policies/signed-documents-dashboard/', PolicySignedDocumentsDashboardView.as_view(), name='policy-signed-documents-dashboard'),
 
 #employee
 path('employee-contracts/', ContractOptionAPIView.as_view(), name='employee-contracts'),

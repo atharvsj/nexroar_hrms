@@ -16034,3 +16034,377 @@ class AllSignedPolicyDocumentsView(APIView):
             return Response({
                 "error": f"Failed to retrieve documents list: {str(e)}"
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class SendPolicyReminderView(APIView):
+    """
+    Send reminder notification to employee to upload signed policy document (HR/Admin).
+    POST /policies/send-reminder/{emp_id}/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, emp_id):
+        try:
+            # Get HR/Admin user ID from request
+            hr_user_id = request.data.get('user_id')
+            
+            if not hr_user_id:
+                return Response({
+                    "error": "user_id is required in request body"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            with connection.cursor() as cursor:
+                # Get employee details
+                cursor.execute("""
+                    SELECT u.id, u.first_name, u.last_name, u.email
+                    FROM ci_erp_users_details ud
+                    JOIN ci_erp_users u ON ud.user_id = u.id
+                    WHERE ud.employee_id = %s
+                """, [emp_id])
+                employee = cursor.fetchone()
+                
+                if not employee:
+                    return Response({
+                        "error": "Employee not found"
+                    }, status=status.HTTP_404_NOT_FOUND)
+                
+                employee_user_id, first_name, last_name, email = employee
+                employee_name = f"{first_name} {last_name}"
+                
+                # Check if employee has acknowledged all policies
+                cursor.execute("""
+                    SELECT policy_id 
+                    FROM ci_policy_allocations 
+                    WHERE emp_id = %s
+                """, [emp_id])
+                allocation_row = cursor.fetchone()
+                
+                if not allocation_row or not allocation_row[0]:
+                    return Response({
+                        "error": "No policies assigned to this employee"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                policy_ids = allocation_row[0].split(',')
+                
+                # Check if all policies are acknowledged
+                cursor.execute("""
+                    SELECT COUNT(*) 
+                    FROM ci_policies_acknowledge 
+                    WHERE emp_id = %s AND acknowledge = 'Y'
+                """, [emp_id])
+                acknowledged_count = cursor.fetchone()[0]
+                
+                if acknowledged_count < len(policy_ids):
+                    return Response({
+                        "error": "Employee has not acknowledged all policies yet",
+                        "acknowledged": acknowledged_count,
+                        "total_policies": len(policy_ids)
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Check if document already uploaded
+                cursor.execute("""
+                    SELECT signed_document, email_status
+                    FROM ci_policy_signed_documents
+                    WHERE emp_id = %s
+                """, [emp_id])
+                doc_row = cursor.fetchone()
+                
+                if doc_row and doc_row[0]:
+                    return Response({
+                        "error": "Employee has already uploaded the signed document",
+                        "document_path": doc_row[0],
+                        "email_status": doc_row[1]
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Create notification
+                now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                notification_text = "Please download, sign, and upload your Policy Acknowledgement Document. Go to Policies section to complete this action."
+                
+                cursor.execute("""
+                    INSERT INTO ci_notification (send_from_id, send_to_id, notification_text, created_at)
+                    VALUES (%s, %s, %s, %s)
+                """, [hr_user_id, employee_user_id, notification_text, now])
+                
+                # Update or insert reminder tracking
+                cursor.execute("""
+                    SELECT id FROM ci_policy_signed_documents WHERE emp_id = %s
+                """, [emp_id])
+                existing = cursor.fetchone()
+                
+                if existing:
+                    # Update existing record
+                    cursor.execute("""
+                        UPDATE ci_policy_signed_documents
+                        SET reminder_sent_count = reminder_sent_count + 1,
+                            last_reminder_sent_at = %s,
+                            last_reminded_by = %s
+                        WHERE emp_id = %s
+                    """, [now, hr_user_id, emp_id])
+                else:
+                    # Insert new record to track reminder
+                    cursor.execute("""
+                        INSERT INTO ci_policy_signed_documents 
+                        (emp_id, signed_document, uploaded_at, email_status, reminder_sent_count, last_reminder_sent_at, last_reminded_by, created_at)
+                        VALUES (%s, '', NULL, 'not_uploaded', 1, %s, %s, %s)
+                    """, [emp_id, now, hr_user_id, now])
+                
+                # Get updated reminder count
+                cursor.execute("""
+                    SELECT reminder_sent_count FROM ci_policy_signed_documents WHERE emp_id = %s
+                """, [emp_id])
+                reminder_count = cursor.fetchone()[0]
+                
+                return Response({
+                    "message": "Reminder sent successfully to employee",
+                    "employee_id": emp_id,
+                    "employee_name": employee_name,
+                    "employee_email": email,
+                    "reminder_sent_at": now,
+                    "total_reminders_sent": reminder_count,
+                    "notification_sent": True
+                }, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            return Response({
+                "error": f"Failed to send reminder: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ResendEmailToHRView(APIView):
+    """
+    Resend email to HR if it failed previously (HR/Admin).
+    POST /policies/resend-email/{emp_id}/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, emp_id):
+        try:
+            with connection.cursor() as cursor:
+                # Get employee details
+                cursor.execute("""
+                    SELECT u.id, u.first_name, u.last_name, u.email
+                    FROM ci_erp_users_details ud
+                    JOIN ci_erp_users u ON ud.user_id = u.id
+                    WHERE ud.employee_id = %s
+                """, [emp_id])
+                employee = cursor.fetchone()
+                
+                if not employee:
+                    return Response({
+                        "error": "Employee not found"
+                    }, status=status.HTTP_404_NOT_FOUND)
+                
+                user_id, first_name, last_name, email = employee
+                employee_name = f"{first_name} {last_name}"
+                
+                # Get signed document details
+                cursor.execute("""
+                    SELECT signed_document, email_status, uploaded_at
+                    FROM ci_policy_signed_documents
+                    WHERE emp_id = %s
+                """, [emp_id])
+                doc_row = cursor.fetchone()
+                
+                if not doc_row or not doc_row[0]:
+                    return Response({
+                        "error": "No signed document found for this employee"
+                    }, status=status.HTTP_404_NOT_FOUND)
+                
+                document_path, current_email_status, uploaded_at = doc_row
+                
+                # Check if document file exists
+                file_path = os.path.join(settings.MEDIA_ROOT, document_path)
+                if not os.path.exists(file_path):
+                    return Response({
+                        "error": "Signed document file not found on server"
+                    }, status=status.HTTP_404_NOT_FOUND)
+                
+                # Get HR email
+                hr_email = 'hr@thedatatechlabs.com'
+                cursor.execute("""
+                    SELECT email FROM ci_erp_users 
+                    WHERE user_type = 'admin' AND is_active = 1 
+                    LIMIT 1
+                """)
+                hr_row = cursor.fetchone()
+                if hr_row and hr_row[0]:
+                    hr_email = hr_row[0]
+                
+                # Get policy count
+                cursor.execute("""
+                    SELECT COUNT(*) 
+                    FROM ci_policies_acknowledge 
+                    WHERE emp_id = %s AND acknowledge = 'Y'
+                """, [emp_id])
+                policy_count = cursor.fetchone()[0]
+                
+                # Send email
+                try:
+                    subject = f'Policy Acknowledgement - Signed Document from {employee_name}'
+                    upload_datetime = uploaded_at.strftime('%Y-%m-%d %H:%M:%S') if uploaded_at else 'N/A'
+                    message = f"""
+Dear HR Team,
+
+Employee {employee_name} (ID: {emp_id}) has uploaded their signed policy acknowledgement document.
+
+Employee Details:
+- Name: {employee_name}
+- Employee ID: {emp_id}
+- Email: {email}
+- Upload Date: {upload_datetime}
+- Policies Acknowledged: {policy_count}
+
+Please find the signed document attached.
+
+Best Regards,
+HRMS System
+                    """
+                    
+                    email_msg = EmailMessage(
+                        subject=subject,
+                        body=message,
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        to=[hr_email],
+                        cc=[email]
+                    )
+                    
+                    email_msg.attach_file(file_path)
+                    email_msg.send(fail_silently=False)
+                    
+                    # Update email status
+                    email_sent_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    cursor.execute("""
+                        UPDATE ci_policy_signed_documents 
+                        SET email_status = 'sent', email_sent_at = %s
+                        WHERE emp_id = %s
+                    """, [email_sent_at, emp_id])
+                    
+                    return Response({
+                        "message": "Email resent successfully to HR",
+                        "employee_id": emp_id,
+                        "employee_name": employee_name,
+                        "hr_email": hr_email,
+                        "email_sent_at": email_sent_at,
+                        "previous_status": current_email_status
+                    }, status=status.HTTP_200_OK)
+                    
+                except Exception as email_error:
+                    # Update status to failed
+                    cursor.execute("""
+                        UPDATE ci_policy_signed_documents 
+                        SET email_status = 'failed'
+                        WHERE emp_id = %s
+                    """, [emp_id])
+                    
+                    return Response({
+                        "error": f"Failed to send email: {str(email_error)}",
+                        "employee_id": emp_id,
+                        "employee_name": employee_name
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    
+        except Exception as e:
+            return Response({
+                "error": f"Failed to resend email: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PolicySignedDocumentsDashboardView(APIView):
+    """
+    Enhanced dashboard with reminder statistics (HR/Admin).
+    GET /policies/signed-documents-dashboard/
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT 
+                        ud.employee_id,
+                        CONCAT(u.first_name, ' ', u.last_name) AS employee_name,
+                        u.email,
+                        psd.signed_document,
+                        psd.uploaded_at,
+                        psd.email_status,
+                        psd.email_sent_at,
+                        psd.reminder_sent_count,
+                        psd.last_reminder_sent_at,
+                        psd.last_reminded_by,
+                        CASE 
+                            WHEN psd.signed_document IS NOT NULL AND psd.signed_document != '' THEN 'Uploaded'
+                            ELSE 'Pending'
+                        END AS status,
+                        (SELECT COUNT(*) FROM ci_policies_acknowledge 
+                         WHERE emp_id = ud.employee_id AND acknowledge = 'Y') AS acknowledged_count,
+                        (SELECT policy_id FROM ci_policy_allocations WHERE emp_id = ud.employee_id) AS assigned_policies
+                    FROM ci_erp_users_details ud
+                    JOIN ci_erp_users u ON ud.user_id = u.id
+                    LEFT JOIN ci_policy_signed_documents psd ON ud.employee_id = psd.emp_id
+                    WHERE u.is_active = 1
+                    ORDER BY psd.uploaded_at DESC, psd.last_reminder_sent_at DESC, ud.employee_id ASC
+                """)
+                rows = cursor.fetchall()
+                
+                result = []
+                for row in rows:
+                    assigned_policy_str = row[12]
+                    total_policies = len(assigned_policy_str.split(',')) if assigned_policy_str else 0
+                    acknowledged = row[11]
+                    all_acknowledged = acknowledged >= total_policies if total_policies > 0 else False
+                    
+                    # Get HR name who sent last reminder
+                    hr_name = None
+                    if row[9]:  # last_reminded_by
+                        cursor.execute("""
+                            SELECT CONCAT(first_name, ' ', last_name) 
+                            FROM ci_erp_users 
+                            WHERE id = %s
+                        """, [row[9]])
+                        hr_row = cursor.fetchone()
+                        if hr_row:
+                            hr_name = hr_row[0]
+                    
+                    result.append({
+                        "employee_id": row[0],
+                        "employee_name": row[1],
+                        "email": row[2],
+                        "document_path": row[3] if row[3] else None,
+                        "uploaded_at": row[4].strftime('%Y-%m-%d %H:%M:%S') if row[4] else None,
+                        "email_status": row[5] if row[5] else "not_uploaded",
+                        "email_sent_at": row[6].strftime('%Y-%m-%d %H:%M:%S') if row[6] else None,
+                        "reminder_sent_count": row[7] if row[7] else 0,
+                        "last_reminder_sent_at": row[8].strftime('%Y-%m-%d %H:%M:%S') if row[8] else None,
+                        "last_reminded_by_name": hr_name,
+                        "status": row[10],
+                        "total_policies": total_policies,
+                        "acknowledged_policies": acknowledged,
+                        "all_acknowledged": all_acknowledged,
+                        "can_send_reminder": all_acknowledged and row[10] == 'Pending'
+                    })
+                
+                # Enhanced summary stats
+                total_employees = len(result)
+                uploaded_count = sum(1 for r in result if r['status'] == 'Uploaded')
+                pending_count = total_employees - uploaded_count
+                pending_with_all_ack = sum(1 for r in result if r['can_send_reminder'])
+                pending_without_ack = sum(1 for r in result if r['status'] == 'Pending' and not r['all_acknowledged'])
+                email_failed_count = sum(1 for r in result if r['email_status'] == 'failed')
+                total_reminders_sent = sum(r['reminder_sent_count'] for r in result)
+                
+                return Response({
+                    "summary": {
+                        "total_employees": total_employees,
+                        "uploaded": uploaded_count,
+                        "pending": pending_count,
+                        "pending_ready_for_reminder": pending_with_all_ack,
+                        "pending_not_acknowledged": pending_without_ack,
+                        "email_failed": email_failed_count,
+                        "total_reminders_sent": total_reminders_sent
+                    },
+                    "data": result
+                }, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            return Response({
+                "error": f"Failed to retrieve dashboard: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -1,0 +1,409 @@
+# Policy Signed Acknowledgement APIs - Frontend Integration Sheet
+# Total APIs: 9
+# Last Updated: February 2, 2026
+
+================================================================================
+Sr.No: 1
+API Name: Get Assigned Policies (Updated)
+URL: /policies/assigned/{emp_id}/
+Method: GET
+Description: Get all policies assigned to employee with signed document status
+
+Request Headers:
+  - Authorization: Bearer <jwt_token>
+
+Request Payload: None (emp_id in URL path)
+
+Success Response (200 OK):
+{
+    "alert": "Alert! You Need to Accept All Policy to Avail your Attendance and Payroll",
+    "all_acknowledged": false,
+    "total_policies": 5,
+    "acknowledged_count": 3,
+    "signed_document": {
+        "has_uploaded": false,
+        "document_path": null,
+        "uploaded_at": null,
+        "email_status": "not_uploaded"
+    },
+    "policies": [
+        {
+            "policy_id": 1,
+            "policy_name": "Code of Conduct",
+            "attachment_text": "policies/code_of_conduct.pdf",
+            "acknowledged": true
+        },
+        {
+            "policy_id": 2,
+            "policy_name": "Data Privacy Policy",
+            "attachment_text": "policies/data_privacy.pdf",
+            "acknowledged": false
+        }
+    ]
+}
+
+Error Responses:
+  - 404: {"error": "Employee not found"}
+  - 500: {"error": "Failed to retrieve policies: <error_message>"}
+
+================================================================================
+Sr.No: 2
+API Name: Download Policy Acknowledgement Template
+URL: /policies/download-acknowledgement-template/{emp_id}/
+Method: GET
+Description: Download the template PDF for employee to sign offline
+
+Request Headers:
+  - Authorization: Bearer <jwt_token>
+
+Request Payload: None (emp_id in URL path)
+
+Success Response (200 OK):
+  Content-Type: application/pdf
+  Content-Disposition: attachment; filename="Policy_Acknowledgement_Template.pdf"
+  Body: [PDF File Binary Data]
+
+Error Responses:
+  - 404: {"error": "Employee not found"}
+  - 404: {"error": "Template file not found"}
+  - 500: {"error": "Failed to download template: <error_message>"}
+
+================================================================================
+Sr.No: 3
+API Name: Upload Signed Policy Document
+URL: /policies/upload-signed-document/{emp_id}/
+Method: POST
+Description: Upload signed document. Auto-sends email to HR with attachment.
+
+Request Headers:
+  - Authorization: Bearer <jwt_token>
+  - Content-Type: multipart/form-data
+
+Request Payload (Form Data):
+  - signed_document: [File] 
+    - Allowed types: PDF, JPG, JPEG, PNG, DOCX
+    - Max size: 10MB
+
+Success Response (201 Created):
+{
+    "message": "Signed document uploaded successfully and email sent to HR",
+    "employee_id": "EMP001",
+    "employee_name": "John Doe",
+    "file_path": "signed_acknowledgements/EMP001_policy_acknowledgement_20260131_143025.pdf",
+    "uploaded_at": "2026-01-31 14:30:25",
+    "email_sent": true,
+    "hr_email": "hr@thedatatechlabs.com"
+}
+
+Success Response (201 Created) - Email Failed:
+{
+    "message": "Document uploaded but failed to send email to HR",
+    "employee_id": "EMP001",
+    "employee_name": "John Doe",
+    "file_path": "signed_acknowledgements/EMP001_policy_acknowledgement_20260131_143025.pdf",
+    "uploaded_at": "2026-01-31 14:30:25",
+    "email_sent": false,
+    "email_error": "SMTP connection failed"
+}
+
+Error Responses:
+  - 400: {"error": "No file uploaded. Please upload a signed document."}
+  - 400: {"error": "File size exceeds maximum limit of 10.0MB"}
+  - 400: {"error": "Invalid file type. Allowed types: .pdf, .jpg, .jpeg, .png, .docx"}
+  - 400: {"error": "Please acknowledge all assigned policies before uploading the signed document", "acknowledged": 2, "total_policies": 5}
+  - 404: {"error": "Employee not found"}
+  - 500: {"error": "Failed to upload document: <error_message>"}
+
+================================================================================
+Sr.No: 4
+API Name: Check Signed Document Status
+URL: /policies/signed-document-status/{emp_id}/
+Method: GET
+Description: Check if employee has uploaded their signed document
+
+Request Headers:
+  - Authorization: Bearer <jwt_token>
+
+Request Payload: None (emp_id in URL path)
+
+Success Response (200 OK) - Document Uploaded:
+{
+    "employee_id": "EMP001",
+    "employee_name": "John Doe",
+    "has_uploaded": true,
+    "document_path": "signed_acknowledgements/EMP001_policy_acknowledgement_20260131_143025.pdf",
+    "uploaded_at": "2026-01-31 14:30:25",
+    "email_status": "sent",
+    "email_sent_at": "2026-01-31 14:30:30"
+}
+
+Success Response (200 OK) - Document Not Uploaded:
+{
+    "employee_id": "EMP001",
+    "employee_name": "John Doe",
+    "has_uploaded": false,
+    "document_path": null,
+    "uploaded_at": null,
+    "email_status": "not_uploaded",
+    "email_sent_at": null
+}
+
+Error Responses:
+  - 404: {"error": "Employee not found"}
+  - 500: {"error": "Failed to check status: <error_message>"}
+
+================================================================================
+Sr.No: 5
+API Name: View/Download Signed Document (HR/Admin)
+URL: /policies/view-signed-document/{emp_id}/
+Method: GET
+Description: HR/Admin can download employee's signed document
+
+Request Headers:
+  - Authorization: Bearer <jwt_token>
+
+Request Payload: None (emp_id in URL path)
+
+Success Response (200 OK):
+  Content-Type: application/pdf (or image/jpeg, image/png, etc.)
+  Content-Disposition: attachment; filename="EMP001_John_Doe_signed_policy.pdf"
+  Body: [File Binary Data]
+
+Error Responses:
+  - 404: {"error": "Employee not found"}
+  - 404: {"error": "No signed document found for this employee"}
+  - 404: {"error": "Signed document file not found on server"}
+  - 500: {"error": "Failed to retrieve document: <error_message>"}
+
+================================================================================
+Sr.No: 6
+API Name: Get All Signed Documents (Basic Dashboard)
+URL: /policies/all-signed-documents/
+Method: GET
+Description: Basic dashboard showing all employees and their upload status
+
+Request Headers:
+  - Authorization: Bearer <jwt_token>
+
+Request Payload: None
+
+Success Response (200 OK):
+{
+    "summary": {
+        "total_employees": 150,
+        "uploaded": 120,
+        "pending": 30
+    },
+    "data": [
+        {
+            "employee_id": "EMP001",
+            "employee_name": "John Doe",
+            "email": "john.doe@company.com",
+            "document_path": "signed_acknowledgements/EMP001_policy_acknowledgement_20260131_143025.pdf",
+            "uploaded_at": "2026-01-31 14:30:25",
+            "email_status": "sent",
+            "email_sent_at": "2026-01-31 14:30:30",
+            "status": "Uploaded"
+        },
+        {
+            "employee_id": "EMP002",
+            "employee_name": "Jane Smith",
+            "email": "jane.smith@company.com",
+            "document_path": null,
+            "uploaded_at": null,
+            "email_status": "not_uploaded",
+            "email_sent_at": null,
+            "status": "Pending"
+        }
+    ]
+}
+
+Error Responses:
+  - 500: {"error": "Failed to retrieve documents list: <error_message>"}
+
+================================================================================
+Sr.No: 7
+API Name: Enhanced Dashboard with Reminders (HR/Admin) ⭐ RECOMMENDED
+URL: /policies/signed-documents-dashboard/
+Method: GET
+Description: Enhanced dashboard with reminder statistics and actionable insights
+
+Request Headers:
+  - Authorization: Bearer <jwt_token>
+
+Request Payload: None
+
+Success Response (200 OK):
+{
+    "summary": {
+        "total_employees": 150,
+        "uploaded": 120,
+        "pending": 30,
+        "pending_ready_for_reminder": 25,
+        "pending_not_acknowledged": 5,
+        "email_failed": 2,
+        "total_reminders_sent": 47
+    },
+    "data": [
+        {
+            "employee_id": "EMP001",
+            "employee_name": "John Doe",
+            "email": "john.doe@company.com",
+            "document_path": "signed_acknowledgements/EMP001_signed_20250110_143022.pdf",
+            "uploaded_at": "2025-01-10 14:30:22",
+            "email_status": "sent",
+            "email_sent_at": "2025-01-10 14:30:25",
+            "reminder_sent_count": 0,
+            "last_reminder_sent_at": null,
+            "last_reminded_by_name": null,
+            "status": "Uploaded",
+            "total_policies": 5,
+            "acknowledged_policies": 5,
+            "all_acknowledged": true,
+            "can_send_reminder": false
+        },
+        {
+            "employee_id": "EMP002",
+            "employee_name": "Jane Smith",
+            "email": "jane.smith@company.com",
+            "document_path": null,
+            "uploaded_at": null,
+            "email_status": "not_uploaded",
+            "email_sent_at": null,
+            "reminder_sent_count": 3,
+            "last_reminder_sent_at": "2025-01-09 10:15:30",
+            "last_reminded_by_name": "HR Manager",
+            "status": "Pending",
+            "total_policies": 5,
+            "acknowledged_policies": 5,
+            "all_acknowledged": true,
+            "can_send_reminder": true
+        }
+    ]
+}
+
+Error Responses:
+  - 500: {"error": "Failed to retrieve dashboard: <error_message>"}
+
+================================================================================
+Sr.No: 8
+API Name: Send Reminder to Employee (HR/Admin)
+URL: /policies/send-reminder/{emp_id}/
+Method: POST
+Description: Send notification reminder to employee. Creates notification in ci_notification table.
+
+Request Headers:
+  - Authorization: Bearer <jwt_token>
+  - Content-Type: application/json
+
+Request Payload (JSON):
+{
+    "user_id": 123
+}
+
+Note: user_id is the logged-in HR/Admin user ID (required)
+
+Success Response (200 OK):
+{
+    "message": "Reminder sent successfully to employee",
+    "employee_id": "EMP002",
+    "employee_name": "Jane Smith",
+    "employee_email": "jane.smith@company.com",
+    "reminder_sent_at": "2025-01-10 15:30:45",
+    "total_reminders_sent": 3,
+    "notification_sent": true
+}
+
+Error Responses:
+  - 400: {"error": "user_id is required in request body"}
+  - 404: {"error": "Employee not found"}
+  - 400: {"error": "No policies assigned to this employee"}
+  - 400: {"error": "Employee has not acknowledged all policies yet", "acknowledged": 3, "total_policies": 5}
+  - 400: {"error": "Employee has already uploaded the signed document", "document_path": "signed_acknowledgements/EMP002_signed_20250110_143022.pdf", "email_status": "sent"}
+  - 500: {"error": "Failed to send reminder: <error_message>"}
+
+================================================================================
+Sr.No: 9
+API Name: Resend Email to HR (HR/Admin)
+URL: /policies/resend-email/{emp_id}/
+Method: POST
+Description: Retry sending email to HR if it failed previously
+
+Request Headers:
+  - Authorization: Bearer <jwt_token>
+  - Content-Type: application/json
+
+Request Payload: None (emp_id in URL path)
+
+Success Response (200 OK):
+{
+    "message": "Email resent successfully to HR",
+    "employee_id": "EMP003",
+    "employee_name": "Mike Johnson",
+    "hr_email": "hr@thedatatechlabs.com",
+    "email_sent_at": "2025-01-10 16:45:30",
+    "previous_status": "failed"
+}
+
+Error Responses:
+  - 404: {"error": "Employee not found"}
+  - 404: {"error": "No signed document found for this employee"}
+  - 404: {"error": "Signed document file not found on server"}
+  - 500: {"error": "Failed to send email: SMTP authentication error", "employee_id": "EMP003", "employee_name": "Mike Johnson"}
+
+================================================================================
+
+# QUICK REFERENCE TABLE
+================================================================================
+| Sr.No | API Name                          | URL                                              | Method |
+|-------|-----------------------------------|--------------------------------------------------|--------|
+| 1     | Get Assigned Policies             | /policies/assigned/{emp_id}/                     | GET    |
+| 2     | Download Template                 | /policies/download-acknowledgement-template/{emp_id}/ | GET    |
+| 3     | Upload Signed Document            | /policies/upload-signed-document/{emp_id}/       | POST   |
+| 4     | Check Upload Status               | /policies/signed-document-status/{emp_id}/       | GET    |
+| 5     | View Signed Document (HR)         | /policies/view-signed-document/{emp_id}/         | GET    |
+| 6     | Basic Dashboard (HR)              | /policies/all-signed-documents/                  | GET    |
+| 7     | Enhanced Dashboard (HR) ⭐        | /policies/signed-documents-dashboard/            | GET    |
+| 8     | Send Reminder (HR)                | /policies/send-reminder/{emp_id}/                | POST   |
+| 9     | Resend Email (HR)                 | /policies/resend-email/{emp_id}/                 | POST   |
+================================================================================
+
+# USER FLOW
+================================================================================
+
+EMPLOYEE FLOW:
+1. GET /policies/assigned/{emp_id}/ → Check all policies and signed_document status
+2. Acknowledge all policies (existing API)
+3. GET /policies/download-acknowledgement-template/{emp_id}/ → Download template
+4. Sign document offline
+5. POST /policies/upload-signed-document/{emp_id}/ → Upload signed document
+6. GET /policies/signed-document-status/{emp_id}/ → Verify upload status
+
+HR/ADMIN FLOW:
+1. GET /policies/signed-documents-dashboard/ → View all employees status
+2. POST /policies/send-reminder/{emp_id}/ → Send reminder to pending employees
+3. POST /policies/resend-email/{emp_id}/ → Retry failed emails
+4. GET /policies/view-signed-document/{emp_id}/ → Download employee's document
+
+================================================================================
+
+# email_status VALUES
+================================================================================
+- "not_uploaded" : Document not yet uploaded
+- "pending"      : Document uploaded, email in queue (rarely used)
+- "sent"         : Email successfully sent to HR
+- "failed"       : Email sending failed (SMTP error)
+
+# status VALUES (in dashboard)
+================================================================================
+- "Uploaded" : Document has been uploaded
+- "Pending"  : Document not yet uploaded
+
+# can_send_reminder FLAG (in enhanced dashboard)
+================================================================================
+- true  : Employee acknowledged all policies but hasn't uploaded → Enable Send Reminder button
+- false : Either already uploaded OR hasn't acknowledged all policies → Disable button
+
+================================================================================
+# END OF API SHEET
+================================================================================
