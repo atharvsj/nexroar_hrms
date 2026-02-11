@@ -1766,9 +1766,73 @@ class EPFRatesView(BaseAPIView):
                 "status": "error",
                 "message": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def post(self, request):
+        """Create or update EPF rate entry"""
+        data = request.data
+        
+        if not data.get('wage_from') or not data.get('wage_to'):
+            return Response({
+                "status": "error",
+                "message": "wage_from and wage_to are required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with connection.cursor() as cursor:
+                # Check if exists
+                cursor.execute("""
+                    SELECT rate_id FROM ci_my_epf_rates
+                    WHERE wage_from = %s AND wage_to = %s
+                """, [data['wage_from'], data['wage_to']])
+                exists = cursor.fetchone()
+                
+                if exists:
+                    cursor.execute("""
+                        UPDATE ci_my_epf_rates SET
+                            employee_rate = %s, employer_rate_below_5k = %s, employer_rate_above_5k = %s,
+                            is_active = %s
+                        WHERE rate_id = %s
+                    """, [
+                        float(data.get('employee_rate', 11)), float(data.get('employer_rate_below_5k', 13)),
+                        float(data.get('employer_rate_above_5k', 12)), data.get('is_active', True),
+                        exists[0]
+                    ])
+                else:
+                    cursor.execute("""
+                        INSERT INTO ci_my_epf_rates
+                        (wage_from, wage_to, employee_rate, employer_rate_below_5k, employer_rate_above_5k, is_active)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, [
+                        float(data['wage_from']), float(data['wage_to']),
+                        float(data.get('employee_rate', 11)), float(data.get('employer_rate_below_5k', 13)),
+                        float(data.get('employer_rate_above_5k', 12)), data.get('is_active', True)
+                    ])
+            
+            return Response({
+                "status": "success",
+                "message": "EPF rate saved successfully"
+            })
+            
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def delete(self, request, rate_id):
+        """Deactivate EPF rate"""
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    UPDATE ci_my_epf_rates SET is_active = 0 WHERE rate_id = %s
+                """, [rate_id])
+            
+            return Response({"status": "success", "message": "Rate deactivated"})
+        except Exception as e:
+            return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class SOCSORAatesView(BaseAPIView):
+class SOCSORatesView(BaseAPIView):
     """View/manage SOCSO contribution rates"""
     
     def get(self, request):
@@ -1791,6 +1855,50 @@ class SOCSORAatesView(BaseAPIView):
                 "status": "error",
                 "message": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def post(self, request):
+        """Create or update SOCSO rate entry"""
+        data = request.data
+        
+        if not data.get('wage_from') or not data.get('wage_to'):
+            return Response({
+                "status": "error",
+                "message": "wage_from and wage_to are required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT rate_id FROM ci_my_socso_rates
+                    WHERE wage_from = %s AND wage_to = %s AND category = %s
+                """, [data['wage_from'], data['wage_to'], data.get('category', 'category_1')])
+                exists = cursor.fetchone()
+                
+                if exists:
+                    cursor.execute("""
+                        UPDATE ci_my_socso_rates SET
+                            employee_rate = %s, employer_rate = %s, is_active = %s
+                        WHERE rate_id = %s
+                    """, [
+                        float(data.get('employee_rate', 0)), float(data.get('employer_rate', 0)),
+                        data.get('is_active', True), exists[0]
+                    ])
+                else:
+                    cursor.execute("""
+                        INSERT INTO ci_my_socso_rates
+                        (category, wage_from, wage_to, employee_rate, employer_rate, is_active)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, [
+                        data.get('category', 'category_1'),
+                        float(data['wage_from']), float(data['wage_to']),
+                        float(data.get('employee_rate', 0)), float(data.get('employer_rate', 0)),
+                        data.get('is_active', True)
+                    ])
+            
+            return Response({"status": "success", "message": "SOCSO rate saved successfully"})
+            
+        except Exception as e:
+            return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class EISRatesView(BaseAPIView):
@@ -1816,6 +1924,49 @@ class EISRatesView(BaseAPIView):
                 "status": "error",
                 "message": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def post(self, request):
+        """Create or update EIS rate entry"""
+        data = request.data
+        
+        if not data.get('wage_from') or not data.get('wage_to'):
+            return Response({
+                "status": "error",
+                "message": "wage_from and wage_to are required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT rate_id FROM ci_my_eis_rates
+                    WHERE wage_from = %s AND wage_to = %s
+                """, [data['wage_from'], data['wage_to']])
+                exists = cursor.fetchone()
+                
+                if exists:
+                    cursor.execute("""
+                        UPDATE ci_my_eis_rates SET
+                            employee_rate = %s, employer_rate = %s, is_active = %s
+                        WHERE rate_id = %s
+                    """, [
+                        float(data.get('employee_rate', 0.2)), float(data.get('employer_rate', 0.2)),
+                        data.get('is_active', True), exists[0]
+                    ])
+                else:
+                    cursor.execute("""
+                        INSERT INTO ci_my_eis_rates
+                        (wage_from, wage_to, employee_rate, employer_rate, is_active)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, [
+                        float(data['wage_from']), float(data['wage_to']),
+                        float(data.get('employee_rate', 0.2)), float(data.get('employer_rate', 0.2)),
+                        data.get('is_active', True)
+                    ])
+            
+            return Response({"status": "success", "message": "EIS rate saved successfully"})
+            
+        except Exception as e:
+            return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class PCBTaxBracketsView(BaseAPIView):
@@ -1841,3 +1992,48 @@ class PCBTaxBracketsView(BaseAPIView):
                 "status": "error",
                 "message": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def post(self, request):
+        """Create or update PCB tax bracket"""
+        data = request.data
+        
+        required = ['tax_year', 'income_from', 'income_to', 'tax_rate']
+        for field in required:
+            if field not in data:
+                return Response({
+                    "status": "error",
+                    "message": f"{field} is required"
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT bracket_id FROM ci_my_pcb_tax_brackets
+                    WHERE tax_year = %s AND income_from = %s AND income_to = %s
+                """, [data['tax_year'], data['income_from'], data['income_to']])
+                exists = cursor.fetchone()
+                
+                if exists:
+                    cursor.execute("""
+                        UPDATE ci_my_pcb_tax_brackets SET
+                            tax_rate = %s, cumulative_tax = %s, is_active = %s
+                        WHERE bracket_id = %s
+                    """, [
+                        float(data['tax_rate']), float(data.get('cumulative_tax', 0)),
+                        data.get('is_active', True), exists[0]
+                    ])
+                else:
+                    cursor.execute("""
+                        INSERT INTO ci_my_pcb_tax_brackets
+                        (tax_year, income_from, income_to, tax_rate, cumulative_tax, is_active)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, [
+                        data['tax_year'], float(data['income_from']), float(data['income_to']),
+                        float(data['tax_rate']), float(data.get('cumulative_tax', 0)),
+                        data.get('is_active', True)
+                    ])
+            
+            return Response({"status": "success", "message": "Tax bracket saved successfully"})
+            
+        except Exception as e:
+            return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -51,7 +51,7 @@ from .views import (
     
     # Statutory Rates
     EPFRatesView,
-    SOCSORAatesView,
+    SOCSORatesView,
     EISRatesView,
     PCBTaxBracketsView,
 )
@@ -144,10 +144,12 @@ urlpatterns = [
     path('foreign-workers/<int:company_id>/', ForeignWorkerListView.as_view(), name='foreign_workers_list'),
     
     # ==========================================================================
-    # STATUTORY RATES
+    # STATUTORY RATES MANAGEMENT
     # ==========================================================================
     path('rates/epf/', EPFRatesView.as_view(), name='epf_rates'),
-    path('rates/socso/', SOCSORAatesView.as_view(), name='socso_rates'),
+    path('rates/epf/<int:rate_id>/', EPFRatesView.as_view(), name='epf_rates_delete'),
+    path('rates/socso/', SOCSORatesView.as_view(), name='socso_rates'),
     path('rates/eis/', EISRatesView.as_view(), name='eis_rates'),
     path('rates/pcb/<int:tax_year>/', PCBTaxBracketsView.as_view(), name='pcb_tax_brackets'),
+    path('rates/pcb/', PCBTaxBracketsView.as_view(), name='pcb_tax_brackets_save'),
 ]
