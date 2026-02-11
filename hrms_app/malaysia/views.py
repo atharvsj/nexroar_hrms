@@ -2037,3 +2037,794 @@ class PCBTaxBracketsView(BaseAPIView):
             
         except Exception as e:
             return Response({"status": "error", "message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# =============================================================================
+# BULK EMPLOYEE IMPORT
+# =============================================================================
+
+class BulkEmployeeImportView(BaseAPIView):
+    """
+    Bulk import Malaysian employee details from JSON array.
+    POST: Import multiple employees at once
+    """
+    
+    def post(self, request):
+        """
+        Import multiple employees with Malaysian details.
+        
+        Request body:
+        {
+            "employees": [
+                {
+                    "employee_id": 123,
+                    "user_id": 456,
+                    "ic_number": "901231145678",
+                    "epf_member_no": "12345678",
+                    "socso_member_no": "12345678901234",
+                    "tax_reference_no": "SG12345678901",
+                    "worker_type": "local",
+                    "nationality": "Malaysian",
+                    "bank_code": "MBB",
+                    "bank_account_no": "164012345678"
+                },
+                ...
+            ]
+        }
+        """
+        employees = request.data.get('employees', [])
+        
+        if not employees:
+            return Response({
+                "status": "error",
+                "message": "No employees provided. Expected 'employees' array."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not isinstance(employees, list):
+            return Response({
+                "status": "error",
+                "message": "'employees' must be an array"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        results = {
+            "success": [],
+            "failed": [],
+            "total": len(employees)
+        }
+        
+        try:
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    for idx, emp in enumerate(employees):
+                        try:
+                            # Validate required fields
+                            if not emp.get('employee_id') or not emp.get('user_id'):
+                                results['failed'].append({
+                                    "index": idx,
+                                    "employee_id": emp.get('employee_id'),
+                                    "error": "employee_id and user_id are required"
+                                })
+                                continue
+                            
+                            # Check if exists
+                            cursor.execute("""
+                                SELECT my_employee_id FROM ci_my_employee_details
+                                WHERE employee_id = %s
+                            """, [emp['employee_id']])
+                            exists = cursor.fetchone()
+                            
+                            if exists:
+                                # Update
+                                cursor.execute("""
+                                    UPDATE ci_my_employee_details SET
+                                        user_id = %s,
+                                        ic_number = %s, passport_number = %s, passport_expiry = %s,
+                                        tax_reference_no = %s, epf_member_no = %s, socso_member_no = %s, eis_member_no = %s,
+                                        nationality = %s, residency_status = %s, worker_type = %s,
+                                        epf_contribution_type = %s, socso_category = %s,
+                                        work_permit_number = %s, work_permit_expiry = %s,
+                                        visa_type = %s, visa_expiry = %s,
+                                        fomema_date = %s, fomema_expiry = %s,
+                                        levy_payment_type = %s, levy_amount = %s,
+                                        bank_code = %s, bank_name = %s, bank_account_no = %s, bank_swift_code = %s,
+                                        updated_at = NOW()
+                                    WHERE employee_id = %s
+                                """, [
+                                    emp['user_id'],
+                                    emp.get('ic_number'), emp.get('passport_number'), emp.get('passport_expiry'),
+                                    emp.get('tax_reference_no'), emp.get('epf_member_no'), emp.get('socso_member_no'), emp.get('eis_member_no'),
+                                    emp.get('nationality', 'Malaysian'), emp.get('residency_status', 'resident'), emp.get('worker_type', 'local'),
+                                    emp.get('epf_contribution_type', 'full'), emp.get('socso_category', 'category_1'),
+                                    emp.get('work_permit_number'), emp.get('work_permit_expiry'),
+                                    emp.get('visa_type'), emp.get('visa_expiry'),
+                                    emp.get('fomema_date'), emp.get('fomema_expiry'),
+                                    emp.get('levy_payment_type', 'company'), float(emp.get('levy_amount', 0) or 0),
+                                    emp.get('bank_code'), emp.get('bank_name'), emp.get('bank_account_no'), emp.get('bank_swift_code'),
+                                    emp['employee_id']
+                                ])
+                                results['success'].append({
+                                    "index": idx,
+                                    "employee_id": emp['employee_id'],
+                                    "action": "updated"
+                                })
+                            else:
+                                # Insert
+                                cursor.execute("""
+                                    INSERT INTO ci_my_employee_details
+                                    (employee_id, user_id, ic_number, passport_number, passport_expiry,
+                                     tax_reference_no, epf_member_no, socso_member_no, eis_member_no,
+                                     nationality, residency_status, worker_type,
+                                     epf_contribution_type, socso_category,
+                                     work_permit_number, work_permit_expiry, visa_type, visa_expiry,
+                                     fomema_date, fomema_expiry, levy_payment_type, levy_amount,
+                                     bank_code, bank_name, bank_account_no, bank_swift_code)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                """, [
+                                    emp['employee_id'], emp['user_id'],
+                                    emp.get('ic_number'), emp.get('passport_number'), emp.get('passport_expiry'),
+                                    emp.get('tax_reference_no'), emp.get('epf_member_no'), emp.get('socso_member_no'), emp.get('eis_member_no'),
+                                    emp.get('nationality', 'Malaysian'), emp.get('residency_status', 'resident'), emp.get('worker_type', 'local'),
+                                    emp.get('epf_contribution_type', 'full'), emp.get('socso_category', 'category_1'),
+                                    emp.get('work_permit_number'), emp.get('work_permit_expiry'),
+                                    emp.get('visa_type'), emp.get('visa_expiry'),
+                                    emp.get('fomema_date'), emp.get('fomema_expiry'),
+                                    emp.get('levy_payment_type', 'company'), float(emp.get('levy_amount', 0) or 0),
+                                    emp.get('bank_code'), emp.get('bank_name'), emp.get('bank_account_no'), emp.get('bank_swift_code')
+                                ])
+                                results['success'].append({
+                                    "index": idx,
+                                    "employee_id": emp['employee_id'],
+                                    "action": "created"
+                                })
+                                
+                        except Exception as e:
+                            results['failed'].append({
+                                "index": idx,
+                                "employee_id": emp.get('employee_id'),
+                                "error": str(e)
+                            })
+            
+            return Response({
+                "status": "success" if not results['failed'] else "partial",
+                "message": f"Processed {len(results['success'])} of {results['total']} employees",
+                "results": results
+            })
+            
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class BulkTaxProfileImportView(BaseAPIView):
+    """Bulk import employee tax profiles"""
+    
+    def post(self, request):
+        """
+        Import multiple employee tax profiles.
+        
+        Request body:
+        {
+            "tax_year": 2026,
+            "profiles": [
+                {
+                    "employee_id": 123,
+                    "marital_status": "married",
+                    "spouse_working": false,
+                    "number_of_children": 2,
+                    "children_studying_higher": 1
+                },
+                ...
+            ]
+        }
+        """
+        tax_year = request.data.get('tax_year')
+        profiles = request.data.get('profiles', [])
+        
+        if not tax_year:
+            return Response({
+                "status": "error",
+                "message": "tax_year is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not profiles:
+            return Response({
+                "status": "error",
+                "message": "No profiles provided"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        results = {"success": [], "failed": [], "total": len(profiles)}
+        
+        try:
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    for idx, profile in enumerate(profiles):
+                        try:
+                            if not profile.get('employee_id'):
+                                results['failed'].append({
+                                    "index": idx,
+                                    "error": "employee_id is required"
+                                })
+                                continue
+                            
+                            cursor.execute("""
+                                SELECT profile_id FROM ci_my_employee_tax_profile
+                                WHERE employee_id = %s AND tax_year = %s
+                            """, [profile['employee_id'], tax_year])
+                            exists = cursor.fetchone()
+                            
+                            if exists:
+                                cursor.execute("""
+                                    UPDATE ci_my_employee_tax_profile SET
+                                        marital_status = %s, spouse_working = %s, spouse_disabled = %s,
+                                        number_of_children = %s, children_studying_higher = %s, children_disabled = %s,
+                                        disabled_self = %s,
+                                        epf_additional = %s, life_insurance = %s, education_insurance = %s,
+                                        medical_insurance = %s, sspn_deposit = %s, zakat_paid = %s,
+                                        updated_at = NOW()
+                                    WHERE profile_id = %s
+                                """, [
+                                    profile.get('marital_status', 'single'),
+                                    profile.get('spouse_working', False),
+                                    profile.get('spouse_disabled', False),
+                                    profile.get('number_of_children', 0),
+                                    profile.get('children_studying_higher', 0),
+                                    profile.get('children_disabled', 0),
+                                    profile.get('disabled_self', False),
+                                    float(profile.get('epf_additional', 0) or 0),
+                                    float(profile.get('life_insurance', 0) or 0),
+                                    float(profile.get('education_insurance', 0) or 0),
+                                    float(profile.get('medical_insurance', 0) or 0),
+                                    float(profile.get('sspn_deposit', 0) or 0),
+                                    float(profile.get('zakat_paid', 0) or 0),
+                                    exists[0]
+                                ])
+                            else:
+                                cursor.execute("""
+                                    INSERT INTO ci_my_employee_tax_profile
+                                    (employee_id, tax_year, marital_status, spouse_working, spouse_disabled,
+                                     number_of_children, children_studying_higher, children_disabled, disabled_self,
+                                     epf_additional, life_insurance, education_insurance, medical_insurance, sspn_deposit, zakat_paid)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                """, [
+                                    profile['employee_id'], tax_year,
+                                    profile.get('marital_status', 'single'),
+                                    profile.get('spouse_working', False),
+                                    profile.get('spouse_disabled', False),
+                                    profile.get('number_of_children', 0),
+                                    profile.get('children_studying_higher', 0),
+                                    profile.get('children_disabled', 0),
+                                    profile.get('disabled_self', False),
+                                    float(profile.get('epf_additional', 0) or 0),
+                                    float(profile.get('life_insurance', 0) or 0),
+                                    float(profile.get('education_insurance', 0) or 0),
+                                    float(profile.get('medical_insurance', 0) or 0),
+                                    float(profile.get('sspn_deposit', 0) or 0),
+                                    float(profile.get('zakat_paid', 0) or 0)
+                                ])
+                            
+                            results['success'].append({
+                                "index": idx,
+                                "employee_id": profile['employee_id']
+                            })
+                        except Exception as e:
+                            results['failed'].append({
+                                "index": idx,
+                                "employee_id": profile.get('employee_id'),
+                                "error": str(e)
+                            })
+            
+            return Response({
+                "status": "success" if not results['failed'] else "partial",
+                "message": f"Processed {len(results['success'])} of {results['total']} profiles",
+                "results": results
+            })
+            
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class BulkRatesImportView(BaseAPIView):
+    """Bulk import/update statutory rates (EPF/SOCSO/EIS/PCB)"""
+    
+    def post(self, request):
+        """
+        Bulk import statutory rates.
+        
+        Request body:
+        {
+            "rate_type": "epf" | "socso" | "eis" | "pcb",
+            "tax_year": 2026,  // Required for PCB
+            "rates": [
+                // For EPF:
+                {"wage_from": 0, "wage_to": 30, "employee_rate": 11, "employer_rate_below_5k": 13, "employer_rate_above_5k": 12},
+                // For SOCSO:
+                {"category": "category_1", "wage_from": 0, "wage_to": 50, "employee_rate": 0.10, "employer_rate": 0.20},
+                // For EIS:
+                {"wage_from": 0, "wage_to": 30, "employee_rate": 0.2, "employer_rate": 0.2},
+                // For PCB:
+                {"income_from": 0, "income_to": 5000, "tax_rate": 0, "cumulative_tax": 0},
+            ]
+        }
+        """
+        rate_type = request.data.get('rate_type', '').lower()
+        rates = request.data.get('rates', [])
+        tax_year = request.data.get('tax_year')
+        
+        if rate_type not in ['epf', 'socso', 'eis', 'pcb']:
+            return Response({
+                "status": "error",
+                "message": "rate_type must be one of: epf, socso, eis, pcb"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if rate_type == 'pcb' and not tax_year:
+            return Response({
+                "status": "error",
+                "message": "tax_year is required for PCB rates"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not rates:
+            return Response({
+                "status": "error",
+                "message": "No rates provided"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        results = {"success": 0, "failed": [], "total": len(rates)}
+        
+        try:
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    for idx, rate in enumerate(rates):
+                        try:
+                            if rate_type == 'epf':
+                                cursor.execute("""
+                                    INSERT INTO ci_my_epf_rates
+                                    (wage_from, wage_to, employee_rate, employer_rate_below_5k, employer_rate_above_5k, is_active)
+                                    VALUES (%s, %s, %s, %s, %s, 1)
+                                    ON DUPLICATE KEY UPDATE
+                                        employee_rate = VALUES(employee_rate),
+                                        employer_rate_below_5k = VALUES(employer_rate_below_5k),
+                                        employer_rate_above_5k = VALUES(employer_rate_above_5k),
+                                        is_active = 1
+                                """, [
+                                    float(rate['wage_from']), float(rate['wage_to']),
+                                    float(rate.get('employee_rate', 11)),
+                                    float(rate.get('employer_rate_below_5k', 13)),
+                                    float(rate.get('employer_rate_above_5k', 12))
+                                ])
+                            
+                            elif rate_type == 'socso':
+                                cursor.execute("""
+                                    INSERT INTO ci_my_socso_rates
+                                    (category, wage_from, wage_to, employee_rate, employer_rate, is_active)
+                                    VALUES (%s, %s, %s, %s, %s, 1)
+                                    ON DUPLICATE KEY UPDATE
+                                        employee_rate = VALUES(employee_rate),
+                                        employer_rate = VALUES(employer_rate),
+                                        is_active = 1
+                                """, [
+                                    rate.get('category', 'category_1'),
+                                    float(rate['wage_from']), float(rate['wage_to']),
+                                    float(rate.get('employee_rate', 0)),
+                                    float(rate.get('employer_rate', 0))
+                                ])
+                            
+                            elif rate_type == 'eis':
+                                cursor.execute("""
+                                    INSERT INTO ci_my_eis_rates
+                                    (wage_from, wage_to, employee_rate, employer_rate, is_active)
+                                    VALUES (%s, %s, %s, %s, 1)
+                                    ON DUPLICATE KEY UPDATE
+                                        employee_rate = VALUES(employee_rate),
+                                        employer_rate = VALUES(employer_rate),
+                                        is_active = 1
+                                """, [
+                                    float(rate['wage_from']), float(rate['wage_to']),
+                                    float(rate.get('employee_rate', 0.2)),
+                                    float(rate.get('employer_rate', 0.2))
+                                ])
+                            
+                            elif rate_type == 'pcb':
+                                cursor.execute("""
+                                    INSERT INTO ci_my_pcb_tax_brackets
+                                    (tax_year, income_from, income_to, tax_rate, cumulative_tax, is_active)
+                                    VALUES (%s, %s, %s, %s, %s, 1)
+                                    ON DUPLICATE KEY UPDATE
+                                        tax_rate = VALUES(tax_rate),
+                                        cumulative_tax = VALUES(cumulative_tax),
+                                        is_active = 1
+                                """, [
+                                    tax_year,
+                                    float(rate['income_from']), float(rate['income_to']),
+                                    float(rate.get('tax_rate', 0)),
+                                    float(rate.get('cumulative_tax', 0))
+                                ])
+                            
+                            results['success'] += 1
+                            
+                        except Exception as e:
+                            results['failed'].append({
+                                "index": idx,
+                                "error": str(e)
+                            })
+            
+            return Response({
+                "status": "success" if not results['failed'] else "partial",
+                "message": f"Imported {results['success']} of {results['total']} {rate_type.upper()} rates",
+                "results": results
+            })
+            
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# =============================================================================
+# EMAIL ALERTS FOR DOCUMENT EXPIRY
+# =============================================================================
+
+class DocumentExpiryEmailAlertView(BaseAPIView):
+    """
+    Send email alerts for expiring foreign worker documents.
+    POST: Trigger email alerts
+    GET: Preview who would receive alerts
+    """
+    
+    def get(self, request, company_id):
+        """Preview expiring documents without sending emails"""
+        days_threshold = int(request.query_params.get('days', 30))
+        
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT 
+                        med.employee_id,
+                        CONCAT(u.first_name, ' ', u.last_name) as employee_name,
+                        u.email as employee_email,
+                        med.worker_type,
+                        med.nationality,
+                        med.work_permit_number,
+                        med.work_permit_expiry,
+                        med.visa_type,
+                        med.visa_expiry,
+                        med.fomema_expiry,
+                        DATEDIFF(med.work_permit_expiry, CURDATE()) as days_to_work_permit_expiry,
+                        DATEDIFF(med.visa_expiry, CURDATE()) as days_to_visa_expiry,
+                        DATEDIFF(med.fomema_expiry, CURDATE()) as days_to_fomema_expiry,
+                        CASE
+                            WHEN DATEDIFF(med.work_permit_expiry, CURDATE()) < 0 THEN 'expired'
+                            WHEN DATEDIFF(med.work_permit_expiry, CURDATE()) <= 7 THEN 'critical'
+                            WHEN DATEDIFF(med.work_permit_expiry, CURDATE()) <= 14 THEN 'warning'
+                            ELSE 'notice'
+                        END as work_permit_status,
+                        CASE
+                            WHEN DATEDIFF(med.visa_expiry, CURDATE()) < 0 THEN 'expired'
+                            WHEN DATEDIFF(med.visa_expiry, CURDATE()) <= 7 THEN 'critical'
+                            WHEN DATEDIFF(med.visa_expiry, CURDATE()) <= 14 THEN 'warning'
+                            ELSE 'notice'
+                        END as visa_status,
+                        CASE
+                            WHEN DATEDIFF(med.fomema_expiry, CURDATE()) < 0 THEN 'expired'
+                            WHEN DATEDIFF(med.fomema_expiry, CURDATE()) <= 7 THEN 'critical'
+                            WHEN DATEDIFF(med.fomema_expiry, CURDATE()) <= 14 THEN 'warning'
+                            ELSE 'notice'
+                        END as fomema_status
+                    FROM ci_my_employee_details med
+                    INNER JOIN ci_erp_users_details ud ON med.employee_id = ud.employee_id
+                    INNER JOIN ci_erp_users u ON ud.user_id = u.id
+                    WHERE ud.company_id = %s
+                    AND med.worker_type IN ('foreign', 'expat')
+                    AND med.is_active = 1
+                    AND (
+                        DATEDIFF(med.work_permit_expiry, CURDATE()) <= %s
+                        OR DATEDIFF(med.visa_expiry, CURDATE()) <= %s
+                        OR DATEDIFF(med.fomema_expiry, CURDATE()) <= %s
+                    )
+                    ORDER BY 
+                        LEAST(
+                            COALESCE(DATEDIFF(med.work_permit_expiry, CURDATE()), 999999),
+                            COALESCE(DATEDIFF(med.visa_expiry, CURDATE()), 999999),
+                            COALESCE(DATEDIFF(med.fomema_expiry, CURDATE()), 999999)
+                        )
+                """, [company_id, days_threshold, days_threshold, days_threshold])
+                expiring_docs = self.dictfetchall(cursor)
+                
+                # Get HR email recipients
+                cursor.execute("""
+                    SELECT u.email, CONCAT(u.first_name, ' ', u.last_name) as name
+                    FROM ci_erp_users u
+                    INNER JOIN ci_erp_users_details ud ON u.id = ud.user_id
+                    WHERE ud.company_id = %s 
+                    AND ud.role_id IN (SELECT role_id FROM ci_roles WHERE role_name IN ('HR', 'HR Manager', 'Admin'))
+                    AND u.is_active = 1
+                """, [company_id])
+                hr_recipients = self.dictfetchall(cursor)
+            
+            # Categorize by urgency
+            expired = [d for d in expiring_docs if any(d.get(f'{doc}_status') == 'expired' for doc in ['work_permit', 'visa', 'fomema'])]
+            critical = [d for d in expiring_docs if any(d.get(f'{doc}_status') == 'critical' for doc in ['work_permit', 'visa', 'fomema']) and d not in expired]
+            warning = [d for d in expiring_docs if any(d.get(f'{doc}_status') == 'warning' for doc in ['work_permit', 'visa', 'fomema']) and d not in expired and d not in critical]
+            
+            return Response({
+                "status": "success",
+                "threshold_days": days_threshold,
+                "summary": {
+                    "total_expiring": len(expiring_docs),
+                    "expired": len(expired),
+                    "critical_7_days": len(critical),
+                    "warning_14_days": len(warning)
+                },
+                "hr_recipients": hr_recipients,
+                "expiring_documents": expiring_docs
+            })
+            
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def post(self, request, company_id):
+        """Send email alerts for expiring documents"""
+        days_threshold = int(request.data.get('days', 30))
+        send_to_employees = request.data.get('send_to_employees', False)
+        custom_recipients = request.data.get('custom_recipients', [])  # List of email addresses
+        
+        try:
+            # Get expiring documents data
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT 
+                        med.employee_id,
+                        CONCAT(u.first_name, ' ', u.last_name) as employee_name,
+                        u.email as employee_email,
+                        med.worker_type,
+                        med.work_permit_number,
+                        med.work_permit_expiry,
+                        med.visa_type,
+                        med.visa_expiry,
+                        med.fomema_expiry,
+                        DATEDIFF(med.work_permit_expiry, CURDATE()) as days_to_work_permit_expiry,
+                        DATEDIFF(med.visa_expiry, CURDATE()) as days_to_visa_expiry,
+                        DATEDIFF(med.fomema_expiry, CURDATE()) as days_to_fomema_expiry
+                    FROM ci_my_employee_details med
+                    INNER JOIN ci_erp_users_details ud ON med.employee_id = ud.employee_id
+                    INNER JOIN ci_erp_users u ON ud.user_id = u.id
+                    WHERE ud.company_id = %s
+                    AND med.worker_type IN ('foreign', 'expat')
+                    AND med.is_active = 1
+                    AND (
+                        DATEDIFF(med.work_permit_expiry, CURDATE()) <= %s
+                        OR DATEDIFF(med.visa_expiry, CURDATE()) <= %s
+                        OR DATEDIFF(med.fomema_expiry, CURDATE()) <= %s
+                    )
+                    ORDER BY 
+                        LEAST(
+                            COALESCE(DATEDIFF(med.work_permit_expiry, CURDATE()), 999999),
+                            COALESCE(DATEDIFF(med.visa_expiry, CURDATE()), 999999),
+                            COALESCE(DATEDIFF(med.fomema_expiry, CURDATE()), 999999)
+                        )
+                """, [company_id, days_threshold, days_threshold, days_threshold])
+                expiring_docs = self.dictfetchall(cursor)
+                
+                if not expiring_docs:
+                    return Response({
+                        "status": "success",
+                        "message": "No expiring documents found within threshold",
+                        "emails_sent": 0
+                    })
+                
+                # Get HR recipients
+                cursor.execute("""
+                    SELECT u.email
+                    FROM ci_erp_users u
+                    INNER JOIN ci_erp_users_details ud ON u.id = ud.user_id
+                    WHERE ud.company_id = %s 
+                    AND ud.role_id IN (SELECT role_id FROM ci_roles WHERE role_name IN ('HR', 'HR Manager', 'Admin'))
+                    AND u.is_active = 1
+                    AND u.email IS NOT NULL
+                    AND u.email != ''
+                """, [company_id])
+                hr_emails = [row[0] for row in cursor.fetchall()]
+                
+                # Get company name
+                cursor.execute("""
+                    SELECT company_name FROM ci_companies WHERE company_id = %s
+                """, [company_id])
+                company_row = cursor.fetchone()
+                company_name = company_row[0] if company_row else "Your Company"
+            
+            # Build email content
+            email_subject = f"[URGENT] Foreign Worker Document Expiry Alert - {company_name}"
+            
+            # Create HTML table for email
+            email_body = f"""
+            <html>
+            <head>
+                <style>
+                    table {{ border-collapse: collapse; width: 100%; }}
+                    th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+                    th {{ background-color: #4CAF50; color: white; }}
+                    .expired {{ background-color: #ffcccc; }}
+                    .critical {{ background-color: #ffeb99; }}
+                    .warning {{ background-color: #fff3cd; }}
+                </style>
+            </head>
+            <body>
+                <h2>Foreign Worker Document Expiry Alert</h2>
+                <p>The following foreign worker documents are expiring within {days_threshold} days or have already expired:</p>
+                
+                <table>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Work Permit</th>
+                        <th>Days Left</th>
+                        <th>Visa</th>
+                        <th>Days Left</th>
+                        <th>FOMEMA</th>
+                        <th>Days Left</th>
+                    </tr>
+            """
+            
+            for doc in expiring_docs:
+                wp_days = doc.get('days_to_work_permit_expiry')
+                visa_days = doc.get('days_to_visa_expiry')
+                fomema_days = doc.get('days_to_fomema_expiry')
+                
+                # Determine row class based on most urgent
+                min_days = min(
+                    wp_days if wp_days is not None else 999999,
+                    visa_days if visa_days is not None else 999999,
+                    fomema_days if fomema_days is not None else 999999
+                )
+                row_class = 'expired' if min_days < 0 else ('critical' if min_days <= 7 else ('warning' if min_days <= 14 else ''))
+                
+                email_body += f"""
+                    <tr class="{row_class}">
+                        <td>{doc.get('employee_name', 'N/A')}</td>
+                        <td>{doc.get('work_permit_expiry') or 'N/A'}</td>
+                        <td>{wp_days if wp_days is not None else 'N/A'}</td>
+                        <td>{doc.get('visa_expiry') or 'N/A'}</td>
+                        <td>{visa_days if visa_days is not None else 'N/A'}</td>
+                        <td>{doc.get('fomema_expiry') or 'N/A'}</td>
+                        <td>{fomema_days if fomema_days is not None else 'N/A'}</td>
+                    </tr>
+                """
+            
+            email_body += """
+                </table>
+                
+                <p style="margin-top: 20px;">
+                    <strong>Legend:</strong><br>
+                    <span style="background-color: #ffcccc; padding: 2px 8px;">Red</span> = Expired<br>
+                    <span style="background-color: #ffeb99; padding: 2px 8px;">Yellow</span> = Critical (≤ 7 days)<br>
+                    <span style="background-color: #fff3cd; padding: 2px 8px;">Light Yellow</span> = Warning (≤ 14 days)
+                </p>
+                
+                <p>Please take immediate action to renew the expiring documents.</p>
+                
+                <p style="color: #666; font-size: 12px;">
+                    This is an automated alert from the HRMS system.
+                </p>
+            </body>
+            </html>
+            """
+            
+            # Collect all recipients
+            all_recipients = set(hr_emails)
+            all_recipients.update(custom_recipients)
+            
+            if send_to_employees:
+                employee_emails = [doc.get('employee_email') for doc in expiring_docs if doc.get('employee_email')]
+                all_recipients.update(employee_emails)
+            
+            # Send email using Django
+            from django.core.mail import send_mail
+            from django.conf import settings
+            
+            emails_sent = 0
+            email_errors = []
+            
+            for recipient in all_recipients:
+                if recipient:
+                    try:
+                        send_mail(
+                            subject=email_subject,
+                            message="",  # Plain text (will use HTML)
+                            from_email=settings.DEFAULT_FROM_EMAIL,
+                            recipient_list=[recipient],
+                            html_message=email_body,
+                            fail_silently=False
+                        )
+                        emails_sent += 1
+                    except Exception as email_error:
+                        email_errors.append({
+                            "email": recipient,
+                            "error": str(email_error)
+                        })
+            
+            # Log the alert
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO ci_my_statutory_file_log
+                    (company_id, file_type, file_name, record_count, status, created_by)
+                    VALUES (%s, 'EMAIL_ALERT', 'Document Expiry Alert', %s, 'sent', %s)
+                """, [company_id, len(expiring_docs), request.user.id if hasattr(request, 'user') and request.user.is_authenticated else None])
+            
+            return Response({
+                "status": "success",
+                "message": f"Sent {emails_sent} email alerts",
+                "emails_sent": emails_sent,
+                "recipients": list(all_recipients),
+                "documents_flagged": len(expiring_docs),
+                "errors": email_errors if email_errors else None
+            })
+            
+        except ImportError:
+            return Response({
+                "status": "error",
+                "message": "Email functionality not configured. Please configure Django email settings."
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ScheduledExpiryAlertView(BaseAPIView):
+    """
+    Configure scheduled document expiry alerts.
+    This can be called by a cron job or task scheduler.
+    """
+    
+    def post(self, request):
+        """
+        Process all companies and send expiry alerts.
+        Intended to be called by a cron job daily.
+        """
+        try:
+            with connection.cursor() as cursor:
+                # Get all companies with Malaysian payroll config
+                cursor.execute("""
+                    SELECT DISTINCT company_id FROM ci_my_company_statutory_config
+                """)
+                companies = [row[0] for row in cursor.fetchall()]
+            
+            results = []
+            
+            for company_id in companies:
+                # Check for expiring documents (default 30 days threshold)
+                alert_view = DocumentExpiryEmailAlertView()
+                
+                # Create a mock request with the threshold
+                from django.test import RequestFactory
+                factory = RequestFactory()
+                mock_request = factory.post('/', {'days': 30, 'send_to_employees': False})
+                mock_request.user = request.user if hasattr(request, 'user') else None
+                
+                response = alert_view.post(mock_request, company_id)
+                
+                results.append({
+                    "company_id": company_id,
+                    "status": response.data.get('status'),
+                    "emails_sent": response.data.get('emails_sent', 0)
+                })
+            
+            return Response({
+                "status": "success",
+                "message": f"Processed {len(companies)} companies",
+                "results": results
+            })
+            
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

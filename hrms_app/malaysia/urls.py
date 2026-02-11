@@ -54,6 +54,15 @@ from .views import (
     SOCSORatesView,
     EISRatesView,
     PCBTaxBracketsView,
+    
+    # Bulk Import
+    BulkEmployeeImportView,
+    BulkTaxProfileImportView,
+    BulkRatesImportView,
+    
+    # Email Alerts
+    DocumentExpiryEmailAlertView,
+    ScheduledExpiryAlertView,
 )
 
 app_name = 'malaysia'
@@ -152,4 +161,17 @@ urlpatterns = [
     path('rates/eis/', EISRatesView.as_view(), name='eis_rates'),
     path('rates/pcb/<int:tax_year>/', PCBTaxBracketsView.as_view(), name='pcb_tax_brackets'),
     path('rates/pcb/', PCBTaxBracketsView.as_view(), name='pcb_tax_brackets_save'),
+    
+    # ==========================================================================
+    # BULK IMPORT
+    # ==========================================================================
+    path('bulk-import/employees/', BulkEmployeeImportView.as_view(), name='bulk_import_employees'),
+    path('bulk-import/tax-profiles/', BulkTaxProfileImportView.as_view(), name='bulk_import_tax_profiles'),
+    path('bulk-import/rates/', BulkRatesImportView.as_view(), name='bulk_import_rates'),
+    
+    # ==========================================================================
+    # EMAIL ALERTS
+    # ==========================================================================
+    path('alerts/document-expiry/<int:company_id>/', DocumentExpiryEmailAlertView.as_view(), name='document_expiry_alert'),
+    path('alerts/scheduled-expiry/', ScheduledExpiryAlertView.as_view(), name='scheduled_expiry_alert'),
 ]
