@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from .views.AdminPanel_views import *
 from .views.EmployeePanel_views import *
 from .views.Dropdown_views import *
@@ -319,4 +319,9 @@ urlpatterns = [
     path('training/list/', TrainingListAPIView.as_view(), name='training-list'),
     path('training/details/<int:training_id>/', TrainingDetailsAPIView.as_view(), name='training-details'),
     path('training/update-status/', TrainingUpdateStatusAPIView.as_view(), name='training-update-status'),
+    
+    # ==========================================
+    # MALAYSIAN STATUTORY COMPLIANCE & PAYROLL
+    # ==========================================
+    path('my/', include('hrms_app.malaysia.urls', namespace='malaysia')),
 ]
